@@ -26,6 +26,17 @@ export default function Layout() {
           <Stack.Protected guard={session.status === 'in'}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen
+              name="card/[id]"
+              options={{
+                headerShown: true,
+                title: '',
+                headerShadowVisible: false,
+                headerBackButtonDisplayMode: 'minimal',
+                headerStyle: { backgroundColor: colors.mat },
+                headerTintColor: colors.ink,
+              }}
+            />
+            <Stack.Screen
               name="account"
               options={{
                 presentation: 'modal',

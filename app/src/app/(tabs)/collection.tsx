@@ -7,6 +7,7 @@ import type { Engine } from '../../core/engine';
 import type { Card } from '../../core/types';
 import { useCatalogue } from '../../lib/catalogue';
 import { gridSize } from '../../lib/images';
+import { openCard } from '../../lib/openCard';
 import { useSession } from '../../lib/session';
 import { useEngine } from '../../lib/useEngine';
 import { Button } from '../../ui/Button';
@@ -141,11 +142,16 @@ function Choice({ title, chosen, onPress }: { title: string; chosen: boolean; on
 const Cell = memo(function Cell({ card, owned, width }: { card: Card; owned: boolean; width: number }) {
   const height = Math.floor(width * CARD_RATIO);
   return (
-    <View style={styles.cell} accessible accessibilityLabel={`${describeCard(card)}. ${rarityName[card.rarity]}. ${owned ? 'Yours' : 'Not yours yet'}`}>
+    <Pressable
+      style={({ pressed }) => [styles.cell, pressed && styles.pressed]}
+      onPress={() => openCard(card.id)}
+      accessibilityRole="button"
+      accessibilityLabel={`${describeCard(card)}. ${rarityName[card.rarity]}. ${owned ? 'Yours' : 'Not yours yet'}`}
+    >
       <CardImage card={card} width={width} height={height} grey={!owned} size={gridSize(width)} />
       {/* Grey is not enough to tell them apart: a slab is mostly grey and white already. */}
       {!owned && <View pointerEvents="none" style={[styles.asleep, { width, height, borderRadius: width * 0.05 }]} />}
-    </View>
+    </Pressable>
   );
 });
 
@@ -161,5 +167,6 @@ const styles = StyleSheet.create({
   wide: { alignSelf: 'stretch', marginTop: space.m },
   list: { paddingHorizontal: space.l - GAP / 2, paddingBottom: Platform.select({ ios: 110, default: space.xxl }) },
   cell: { paddingHorizontal: GAP / 2, paddingBottom: GAP },
+  pressed: { opacity: 0.6 },
   asleep: { position: 'absolute', left: GAP / 2, backgroundColor: 'rgba(15, 61, 60, 0.52)' },
 });

@@ -13,6 +13,7 @@ import {
   findReveal,
   isFinished,
   mayContact,
+  waitsFor,
   nextChange,
   whatToShow,
 } from './state';
@@ -188,6 +189,12 @@ export class Engine {
     return this.flushing;
   }
 
+  /** Before anything else is asked. A send that began before the network came back may be about to fail: then our own. */
+  private async sendFirst(): Promise<boolean> {
+    const joined = this.flushing !== null;
+    return (await this.flush()) || (joined && (await this.flush()));
+  }
+
   private async sendAll(): Promise<boolean> {
     while (this.saved.outbox.length > 0) {
       if (this.stopped) return false;
@@ -288,9 +295,7 @@ export class Engine {
     this.triedAt = this.deps.local();
     this.syncing = true;
     this.publish();
-    // A send that began before the network came back may be about to fail. Then try our own.
-    const joined = this.flushing !== null;
-    if (!(await this.flush()) && !(joined && (await this.flush()))) return;
+    if (!(await this.sendFirst())) return;
     if (this.stopped || !mayContact(this.saved, this.clock.now())) return;
     try {
       const { data, sentAt, receivedAt } = await this.deps.api.call<Today>('GET', '/today');
@@ -306,9 +311,12 @@ export class Engine {
     }
   }
 
+  /** Why get would refuse now, for the words on the screen. */
+  waitsFor = (): 'finish' | 'send' | null => waitsFor(this.saved, this.clock.now());
+
   /** A read for another screen. Goes through the same gate as everything else. */
   async get<T>(path: string, headers?: Record<string, string>) {
-    const sent = await this.flush();
+    const sent = await this.sendFirst();
     if (!sent || !mayContact(this.saved, this.clock.now())) throw new Unreachable('network', 'Waiting for your challenge to be sent');
     try {
       const reply = await this.deps.api.call<T>('GET', path, undefined, headers);

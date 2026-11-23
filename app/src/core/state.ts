@@ -52,6 +52,13 @@ export function mayContact(saved: Saved, now: number): boolean {
   return true;
 }
 
+/** What the app waits for before it may ask the server anything else. */
+export function waitsFor(saved: Saved, now: number): 'finish' | 'send' | null {
+  if (mayContact(saved, now)) return null;
+  const open = Object.values(saved.plays).some((play) => now >= ends(play.challenge) - EDGE_MS && isHeldOpen(play, now));
+  return open ? 'finish' : 'send';
+}
+
 /** When the answer to "what to show" can change by itself. */
 export function nextChange(saved: Saved, today: Today | null, now: number): number | null {
   const times: number[] = [];
