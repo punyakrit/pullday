@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, AppState, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, AppState, type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -27,6 +27,7 @@ import { Icon, Shape } from '../ui/Icons';
 import { Words } from '../ui/Words';
 import { CARD_RATIO, colors, rarityColor, rarityName, space } from '../ui/theme';
 import { Rays, Sheen, Sparks } from './Effects';
+import { cardWidth, isShort } from './fit';
 import { liftSpeed } from './swipe';
 
 type Props = {
@@ -47,7 +48,6 @@ const dayName = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString
  * shows. Marked as seen only once it has been face up for a moment with the app in front.
  */
 export function Reveal({ reveal, today, onShown, onClose }: Props) {
-  const window = useWindowDimensions();
   const reduced = useReducedMotion();
   const [turned, send] = useReducer(step, SEALED);
   const { stage } = turned;
@@ -55,10 +55,17 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
   const { card, saved } = turned.drawn ?? reveal;
   const shown = useRef(false);
 
-  // Measured once, so that nothing which comes or goes resizes the card in the middle of it.
-  const [stageHeight, setStageHeight] = useState(0);
-  const width = stageHeight > 0 ? Math.floor(Math.min(window.width * 0.68, (stageHeight - 36) / CARD_RATIO)) : 0;
+  // The window may change in the middle of it. The words above and below count as they are while sealed.
+  const [area, setArea] = useState({ width: 0, height: 0 });
+  const [words, setWords] = useState({ above: 0, below: 0 });
+  const short = isShort(area);
+  const column = short ? { width: Math.round(area.width * 0.56) } : null;
+  const width = cardWidth(area, words);
   const height = Math.floor(width * CARD_RATIO);
+  const measure = (which: 'above' | 'below') => (event: LayoutChangeEvent) => {
+    const { height: now } = event.nativeEvent.layout;
+    if (!short) setWords((before) => (before[which] === now || (stage !== 'sealed' && before[which] > 0) ? before : { ...before, [which]: now }));
+  };
   const picture = useCardRef(card?.id ?? null, width, saved);
 
   const lift = useSharedValue(0); // how far the finger has pulled the card out
@@ -239,7 +246,7 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
     );
   }
 
-  const words =
+  const says =
     stage === 'open'
       ? wordsFor(card, reveal)
       : {
@@ -248,22 +255,18 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
         };
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.top}>
-        <Words kind="title" style={styles.centre} accessibilityRole="header">
-          {words.title}
+    <View style={styles.screen} onLayout={({ nativeEvent: { layout } }) => setArea({ width: layout.width, height: layout.height })}>
+      <View style={[styles.top, short && styles.topBeside, column]} onLayout={measure('above')}>
+        <Words kind={short ? 'label' : 'title'} style={styles.centre} numberOfLines={short ? 1 : undefined} accessibilityRole="header">
+          {says.title}
         </Words>
         <Words kind="soft" style={styles.centre}>
-          {words.line}
+          {says.line}
         </Words>
       </View>
 
       <GestureDetector gesture={pan}>
-        <View
-          style={styles.stage}
-          collapsable={false}
-          onLayout={({ nativeEvent }) => setStageHeight((before) => before || nativeEvent.layout.height)}
-        >
+        <View style={[styles.stage, column && { marginRight: column.width }]} collapsable={false}>
           {card.rarity !== 'common' && <Rays rarity={card.rarity} size={Math.round(width * 2.1)} glow={glow} turn={turn} />}
           {card.rarity !== 'common' && !reduced && <Sparks rarity={card.rarity} radius={width * 0.95} burst={burst} />}
           <Animated.View style={[{ width, height }, cardStyle]}>
@@ -301,12 +304,12 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
         </View>
       </GestureDetector>
 
-      <View style={[styles.bottom, { paddingBottom: space.l }]}>
+      <View style={[styles.bottom, short && styles.bottomBeside, column]} onLayout={measure('below')}>
         {stage === 'open' ? (
           <>
             <View style={styles.name}>
               <Shape rarity={card.rarity} size={22} />
-              <Words kind="heading" numberOfLines={2} style={{ flexShrink: 1 }}>
+              <Words kind="heading" numberOfLines={short ? 1 : 2} style={{ flexShrink: 1 }}>
                 {card.name}
               </Words>
             </View>
@@ -353,10 +356,13 @@ const styles = StyleSheet.create({
   centre: { textAlign: 'center' },
   top: { paddingTop: space.m, paddingHorizontal: space.l, gap: 2, zIndex: 1 },
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  // A short window: the card on the left, everything that is written on the right.
+  topBeside: { position: 'absolute', right: 0, top: 0, paddingHorizontal: space.m, paddingTop: space.s },
+  bottomBeside: { position: 'absolute', right: 0, bottom: 0, paddingHorizontal: space.m, paddingBottom: space.s, minHeight: 0 },
   sleeve: { position: 'absolute', left: 0, right: 0, backgroundColor: '#F3F6F3', borderWidth: 6, borderColor: '#D7382F', borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   sleeveShapes: { flexDirection: 'row', gap: 8, marginTop: space.m },
   spinner: { position: 'absolute' },
-  bottom: { zIndex: 1, paddingHorizontal: space.xl, gap: space.s, minHeight: 150, justifyContent: 'flex-end' },
+  bottom: { zIndex: 1, paddingHorizontal: space.xl, paddingBottom: space.l, gap: space.s, minHeight: 150, justifyContent: 'flex-end' },
   name: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s },
   back: { backgroundColor: colors.deep, padding: 10 },
   backInner: { flex: 1, borderWidth: 2, borderColor: colors.line, backgroundColor: colors.raised, alignItems: 'center', justifyContent: 'center', gap: 10 },
