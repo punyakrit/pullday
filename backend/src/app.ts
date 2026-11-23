@@ -48,7 +48,7 @@ function asUser<T>(request: FastifyRequest, work: (db: Db, user: User) => Promis
 
 export function buildApp(options: { devTools: boolean; logger?: boolean; images?: Partial<ImageOptions> }): FastifyInstance {
   enableDevOffset(options.devTools);
-  const getImage = imageStore(options.images);
+  const images = imageStore(options.images);
   const app = Fastify({
     logger: options.logger ?? false,
     bodyLimit: 16 * 1024,
@@ -171,7 +171,7 @@ export function buildApp(options: { devTools: boolean; logger?: boolean; images?
     async (request, reply) => {
       const { w = '400', grey } = request.query;
       try {
-        const image = await getImage(request.params.id, Number(w) as Width, grey === '1');
+        const image = await images.get(request.params.id, Number(w) as Width, grey === '1');
         return reply.type('image/webp').header('cache-control', 'public, max-age=31536000, immutable').send(image);
       } catch (err) {
         const missing = err instanceof ApiError && err.status === 404;

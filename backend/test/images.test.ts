@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import sharp from 'sharp';
 import { buildApp, close } from './helpers.ts';
+
+const { imageStore } = await import('../src/images.ts');
 
 const photo = await sharp({ create: { width: 1500, height: 2100, channels: 3, background: '#d03020' } }).jpeg().toBuffer();
 const small = await sharp({ create: { width: 300, height: 420, channels: 4, background: '#20408080' } }).png().toBuffer();
@@ -70,7 +72,7 @@ test('the test originals are the sizes they need to be', () => {
   assert.ok(photo.length < images.maxBytes);
 });
 
-test('three widths, as webp, cached for good, from one download', async () => {
+test('three widths, as webp, cached for good: one download for the small ones, one for the large', async () => {
   for (const width of [200, 400, 1080]) {
     const res = await get(`c_0001?w=${width}`);
     assert.equal(res.statusCode, 200);
@@ -81,7 +83,9 @@ test('three widths, as webp, cached for good, from one download', async () => {
     assert.equal(info.width, width);
     assert.equal(info.height, Math.round((width * 2100) / 1500));
   }
-  assert.equal(hits.c_0001, 1);
+  assert.equal(hits.c_0001, 2);
+  for (const width of [200, 400, 1080]) await get(`c_0001?w=${width}`);
+  assert.equal(hits.c_0001, 2);
 });
 
 test('greyscale has no colour left', async () => {
@@ -90,7 +94,7 @@ test('greyscale has no colour left', async () => {
   assert.ok(Math.abs(r - g) <= 2 && Math.abs(g - b) <= 2, `${r} ${g} ${b}`);
   const colour = await sharp((await get('c_0001?w=200')).rawPayload).raw().toBuffer();
   assert.ok(colour[0]! - colour[1]! > 100);
-  assert.equal(hits.c_0001, 1);
+  assert.equal(hits.c_0001, 2);
 });
 
 test('wrong content type and transparency are handled, and small originals are not blown up', async () => {
@@ -134,8 +138,16 @@ test('a broken link is a 404, and is not asked for again straight away', async (
   assert.equal(hits.c_0003, 1);
 });
 
-test('too large is refused, with or without a length, and so is something that is not an image', async () => {
-  for (const id of ['c_0005', 'c_0006', 'c_0007', 'c_0008']) {
+test('something that is not an image, or half of one, is not final', async () => {
+  for (const id of ['c_0007', 'c_0008']) {
+    const res = await get(`${id}?w=200`);
+    assert.equal(res.statusCode, 504, id);
+    assert.equal(res.headers['cache-control'], 'no-store', id);
+  }
+});
+
+test('too large is refused, with or without a length', async () => {
+  for (const id of ['c_0005', 'c_0006']) {
     const res = await get(`${id}?w=200`);
     assert.equal(res.statusCode, 404, id);
     assert.equal(res.json().error, 'image_missing', id);
@@ -171,7 +183,36 @@ test('bad requests and unknown cards', async () => {
   assert.equal((await get('c_9999?w=200')).statusCode, 404);
 });
 
+test('warming makes the small sizes once, and leaves the large one for when it is asked for', async () => {
+  hits.c_0001 = 0;
+  const dir = `${cacheDir}/warm`;
+  const store = imageStore({ ...images, cacheDir: dir });
+  assert.equal(await store.warm('c_0001'), true);
+  assert.deepEqual((await readdir(dir)).sort(), ['c_0001-200-grey.webp', 'c_0001-200.webp', 'c_0001-400-grey.webp', 'c_0001-400.webp']);
+  assert.equal(await store.warm('c_0001'), false);
+  assert.equal(hits.c_0001, 1);
+  assert.ok((await store.get('c_0001', 1080, false)).length > 0);
+  assert.equal(hits.c_0001, 2);
+  await assert.rejects(store.warm('c_0003'), /404/);
+  assert.deepEqual((await readdir(dir)).filter((name) => name.includes('1080')), ['c_0001-1080.webp']);
+});
+
+test('a full disk costs the cached copy, not the picture', async () => {
+  const locked = `${cacheDir}/locked`;
+  await mkdir(locked, { mode: 0o500 });
+  const store = imageStore({ ...images, cacheDir: locked });
+  const quiet = console.error;
+  console.error = () => {};
+  try {
+    assert.ok((await store.get('c_0001', 400, false)).length > 0);
+    assert.ok((await store.get('c_0001', 400, false)).length > 0);
+  } finally {
+    console.error = quiet;
+  }
+  assert.deepEqual(await readdir(locked), []);
+});
+
 test('no half written files are left behind', async () => {
   const names = await readdir(cacheDir);
-  assert.deepEqual(names.filter((name) => !name.endsWith('.webp') && name !== 'fresh'), []);
+  assert.deepEqual(names.filter((name) => !name.endsWith('.webp') && !['fresh', 'warm', 'locked'].includes(name)), []);
 });
