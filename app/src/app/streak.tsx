@@ -113,7 +113,7 @@ function Offer({ engine, offer, waiting, ready, again }: { engine: Engine; offer
       <Words kind="heading">
         Your {offer.lostStreak} day streak broke on {dateText(offer.missedDay)}
       </Words>
-      {waiting && <Words>A freeze you began to buy before that is still on its way. If it arrives, it covers that day and you need not pay here.</Words>}
+      {waiting && <Words>A freeze you began to buy before that is not here yet. If it is approved, it covers that day, and that costs nothing more.</Words>}
       {ready ? (
         <>
           <Words>Win it back and go on from {offer.lostStreak}.</Words>

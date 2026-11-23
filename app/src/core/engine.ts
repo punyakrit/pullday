@@ -586,7 +586,7 @@ export class Engine {
         this.confirmMs = 0;
         done = true;
         if (data.state === 'refunded') this.tell(`refund:${data.freezeId}`, TOO_MANY);
-        else if (this.buying?.id !== row.token) this.notice('Your streak freeze is here.'); // else the shop says it
+        else if (this.buying?.id !== row.token) this.notice('Your freeze purchase went through.'); // else the shop says it
         if (this.buying?.id === row.token) this.buying.confirmed = data.state;
         this.dropPurchase(row.token);
         if (!this.unsaved) this.deps.store.finish(row.id); // only now: until then the store hands it over again

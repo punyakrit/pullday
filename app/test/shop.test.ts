@@ -159,7 +159,7 @@ describe('pending', () => {
     assert.deepEqual([states(engine), server.held], [['pending'], 0]);
     world.store.decide('u1', true);
     await settle();
-    assert.deepEqual([states(engine), server.held, notices(engine)], [[], 1, ['Your streak freeze is here.']]);
+    assert.deepEqual([states(engine), server.held, notices(engine)], [[], 1, ['Your freeze purchase went through.']]);
   });
 
   test('approved while the app was dead', async () => {
@@ -227,7 +227,7 @@ describe('killed while buying', () => {
     assert.deepEqual([states(again), server.held], [['processing'], 0]);
     world.storeGoesOn();
     await settle();
-    assert.deepEqual([states(again), server.held, notices(again)], [[], 1, ['Your streak freeze is here.']]);
+    assert.deepEqual([states(again), server.held, notices(again)], [[], 1, ['Your freeze purchase went through.']]);
   });
 
   test('charged, and dead before the server heard: handed over on launch, granted once', async () => {
