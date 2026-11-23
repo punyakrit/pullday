@@ -8,7 +8,7 @@
 | --- | --- | --- | --- |
 | 0 | Plan, rules, repo. **Done** | 0.5 | 0.5 |
 | 1 | Backend: loop end to end, then make the days correct, then images, seeds, dev tools, tests. **Done**, 189 tests, 23 November 2026 | 3.0 | 3.5 |
-| 2 | App: log in, Today, 8 swipes, reveal, card in collection, streak +1, on a real phone | 3.0 | 6.5 |
+| 2 | App: log in, Today, 8 swipes, reveal, card in collection, streak +1, on a real phone. Built, on an emulator and a simulator so far | 3.0 | 6.5 |
 | 3 | App: make the loop solid. Outbox, kill mid-swipe, kill mid-reveal, phone call, no wifi, 11:58pm | 2.0 | 8.5 |
 | 4 | Collection (2,000 cards, smooth on a cheap Android) and card details | 2.0 | 10.5 |
 | 5 | Streak screen and win back with Stripe test mode | 1.75 | 12.25 |

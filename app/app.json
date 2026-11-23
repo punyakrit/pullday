@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "Pullday Test",
+    "slug": "pullday-test",
+    "version": "0.1.0",
+    "scheme": "pulldaytest",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0F3D3C",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "dev.pullday.testapp",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "dev.pullday.testapp",
+      "allowBackup": false,
+      "adaptiveIcon": {
+        "backgroundColor": "#0F3D3C",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": false
+        }
+      ],
+      "expo-sqlite",
+      "expo-image",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0F3D3C",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/BarlowSemiCondensed-SemiBold.ttf",
+            "./assets/fonts/BarlowSemiCondensed-Bold.ttf"
+          ]
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "platforms": [
+      "ios",
+      "android"
+    ]
+  }
+}

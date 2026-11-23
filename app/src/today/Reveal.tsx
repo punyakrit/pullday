@@ -1,0 +1,354 @@
+import { Image } from 'expo-image';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, ActivityIndicator, AppState, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import Animated, {
+  Easing,
+  Extrapolation,
+  ReduceMotion,
+  interpolate,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
+import type { Reveal as RevealData } from '../core/state';
+import { haptics } from '../lib/haptics';
+import { useCardRef } from '../lib/useCardRef';
+import { Button } from '../ui/Button';
+import { CardText, describeCard } from '../ui/CardImage';
+import { Icon, Shape } from '../ui/Icons';
+import { Words } from '../ui/Words';
+import { CARD_RATIO, colors, rarityColor, rarityName, space } from '../ui/theme';
+import { Rays, Sheen, Sparks } from './Effects';
+import { liftSpeed } from './swipe';
+
+type Props = {
+  reveal: RevealData;
+  today: boolean;
+  onShown: () => void;
+  onClose: () => void;
+};
+
+const FLIP_MS = 620;
+/** Long enough to have seen it. Until then, leaving means it plays again. */
+const SEEN_MS = 900;
+
+const dayName = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'long', timeZone: 'UTC' });
+
+/**
+ * Pull the card up out of its sleeve, and it turns over. The card is already saved before this
+ * shows. Marked as seen only once it has been face up for a moment with the app in front.
+ */
+export function Reveal({ reveal, today, onShown, onClose }: Props) {
+  const { card } = reveal;
+  const window = useWindowDimensions();
+  const reduced = useReducedMotion();
+  const [stage, setStage] = useState<'sealed' | 'pulled' | 'open'>('sealed');
+  const shown = useRef(false);
+
+  // Measured once, so a banner coming or going does not resize the card in the middle of it.
+  const [stageHeight, setStageHeight] = useState(0);
+  const width = stageHeight > 0 ? Math.floor(Math.min(window.width * 0.68, (stageHeight - 36) / CARD_RATIO)) : 0;
+  const height = Math.floor(width * CARD_RATIO);
+  const picture = useCardRef(card, width);
+
+  const lift = useSharedValue(0); // how far the finger has pulled the card out
+  const sleeve = useSharedValue(0); // 0 around the card, 1 gone
+  const flip = useSharedValue(0); // 0 back, 1 face
+  const glow = useSharedValue(0);
+  const turn = useSharedValue(0);
+  const sweep = useSharedValue(0);
+  const burst = useSharedValue(0);
+  const tilt = useSharedValue(0);
+  const hint = useSharedValue(0);
+  const sealed = useSharedValue(true);
+  const touch = useSharedValue({ x: 0, y: 0, at: 0 });
+
+  // A small nudge up now and then, only until it is touched.
+  useEffect(() => {
+    if (reduced || stage !== 'sealed') return;
+    hint.value = withRepeat(
+      withSequence(withDelay(900, withTiming(1, { duration: 420 })), withTiming(0, { duration: 520, easing: Easing.out(Easing.bounce) })),
+      5, // then it waits quietly
+    );
+    return () => {
+      hint.value = withTiming(0, { duration: 120 });
+    };
+  }, [hint, reduced, stage]);
+
+  const reset = useCallback(() => {
+    for (const value of [lift, sleeve, flip, glow, turn, sweep, burst, tilt]) value.value = 0;
+    sealed.value = true;
+    setStage('sealed');
+  }, [burst, flip, glow, lift, sealed, sleeve, sweep, tilt, turn]);
+
+  // A call, the home button, another app: if it was not seen yet, it starts over.
+  useEffect(() => {
+    const listener = AppState.addEventListener('change', (state) => {
+      if (state === 'background' && !shown.current) reset();
+    });
+    return () => listener.remove();
+  }, [reset]);
+
+  const openSleeve = useCallback(() => {
+    setStage((now) => (now === 'sealed' ? 'pulled' : now));
+    haptics.pull();
+  }, []);
+
+  const letGo = useCallback(() => {
+    'worklet';
+    if (!sealed.value) return;
+    sealed.value = false;
+    sleeve.value = withTiming(1, { duration: 380, easing: Easing.in(Easing.quad) });
+    lift.value = withSpring(0, { duration: 420, dampingRatio: 0.85 });
+    scheduleOnRN(openSleeve);
+  }, [lift, openSleeve, sealed, sleeve]);
+
+  const pan = usePanGesture({
+    maxPointers: 1,
+    minDistance: 2,
+    shouldCancelWhenOutside: false,
+    onBegin: (event) => {
+      'worklet';
+      touch.value = { x: event.absoluteX, y: event.absoluteY, at: performance.now() };
+    },
+    onUpdate: (event) => {
+      'worklet';
+      if (sealed.value) {
+        // Follows the finger up. Going down there is nowhere to go.
+        lift.value = Math.max(touch.value.y - event.absoluteY, -14);
+      } else {
+        tilt.value = Math.max(-1, Math.min(1, (event.absoluteX - touch.value.x) / (width * 0.6)));
+      }
+    },
+    onDeactivate: (event) => {
+      'worklet';
+      const up = touch.value.y - event.absoluteY;
+      const speed = liftSpeed(event.velocityY, -up, performance.now() - touch.value.at);
+      if (!sealed.value) {
+        tilt.value = withSpring(0, { duration: 500, dampingRatio: 0.6 });
+      } else if (!event.canceled && (up > height * 0.25 || (speed < -500 && up > 12))) {
+        letGo();
+      } else {
+        lift.value = withSpring(0, { duration: 320, dampingRatio: 0.9 });
+      }
+    },
+  });
+
+  // Turn it over only once the picture is decoded, so nothing pops in afterwards.
+  const turnOver = stage === 'pulled' && (card === null || picture.state !== 'loading');
+  useEffect(() => {
+    if (!turnOver) return;
+    const rarity = card?.rarity ?? 'common';
+    const special = rarity !== 'common';
+    if (reduced) {
+      flip.value = withTiming(1, { duration: 260, reduceMotion: ReduceMotion.Never });
+      glow.value = special ? 0.6 : 0;
+    } else {
+      flip.value = withDelay(160, withTiming(1, { duration: FLIP_MS, easing: Easing.inOut(Easing.cubic) }));
+      const landed = 160 + FLIP_MS * 0.62;
+      sweep.value = withDelay(landed, withTiming(1, { duration: 900, easing: Easing.out(Easing.quad) }));
+      if (special) {
+        glow.value = withDelay(landed - 120, withTiming(1, { duration: 480, easing: Easing.out(Easing.quad) }));
+        turn.value = withDelay(landed, withTiming(1, { duration: 9_000, easing: Easing.out(Easing.quad) }));
+        burst.value = withDelay(landed - 60, withTiming(1, { duration: 1_000, easing: Easing.out(Easing.cubic) }));
+      }
+      if (rarity === 'holo') {
+        tilt.value = withDelay(landed, withSequence(withTiming(0.9, { duration: 700 }), withTiming(-0.7, { duration: 900 }), withTiming(0, { duration: 700 })));
+      }
+    }
+    const face = setTimeout(
+      () => {
+        if (special) haptics.special();
+        else haptics.common();
+        setStage('open');
+        if (card) AccessibilityInfo.announceForAccessibility(`Your card. ${describeCard(card)}. ${rarityName[card.rarity]}.`);
+      },
+      reduced ? 120 : 160 + FLIP_MS * 0.6,
+    );
+    return () => clearTimeout(face);
+  }, [burst, card, flip, glow, reduced, sweep, tilt, turn, turnOver]);
+
+  useEffect(() => {
+    if (stage !== 'open') return;
+    const timer = setInterval(() => {
+      if (AppState.currentState !== 'active' || shown.current) return;
+      shown.current = true;
+      onShown();
+    }, SEEN_MS);
+    return () => clearInterval(timer);
+  }, [onShown, stage]);
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [
+      { perspective: 900 },
+      { translateY: -lift.value - hint.value * 12 * (1 - sleeve.value) },
+      { rotateY: `${tilt.value * 14}deg` },
+    ],
+  }));
+  const backStyle = useAnimatedStyle(() => ({
+    opacity: flip.value < 0.5 ? 1 : 0,
+    transform: [{ perspective: 900 }, { rotateY: reduced ? '0deg' : `${interpolate(flip.value, [0, 1], [0, 180])}deg` }],
+  }));
+  const faceStyle = useAnimatedStyle(() => ({
+    opacity: flip.value < 0.5 ? 0 : 1,
+    transform: [
+      { perspective: 900 },
+      { rotateY: reduced ? '0deg' : `${interpolate(flip.value, [0, 1], [-180, 0])}deg` },
+      { scale: interpolate(flip.value, [0.5, 0.8, 1], [1, 1.05, 1], Extrapolation.CLAMP) },
+    ],
+  }));
+  const sleeveStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(sleeve.value, [0, 0.8, 1], [1, 1, 0]),
+    transform: [{ translateY: sleeve.value * height * 0.7 }],
+  }));
+
+  const title = stage === 'open' ? (reveal.saved ? 'Added to your collection' : 'Your new card') : today ? "Today's card" : `${dayName(reveal.day)}'s card`;
+
+  if (card === null) {
+    return (
+      <View style={[styles.screen, styles.middle]}>
+        <Shape rarity="holo" size={72} />
+        <Words kind="title" style={styles.centre}>
+          You own every card
+        </Words>
+        <Words kind="soft" style={styles.centre}>
+          There is nothing left to pull. Today still counts for your streak.
+        </Words>
+        <Button
+          title="Done"
+          onPress={() => {
+            onShown();
+            onClose();
+          }}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.screen}>
+      <View style={styles.top}>
+        <Words kind="title" style={styles.centre} accessibilityRole="header">
+          {title}
+        </Words>
+        <Words kind="soft" style={styles.centre}>
+          {stage === 'open'
+            ? reveal.saved
+              ? ' '
+              : "It joins your collection when you're online"
+            : reveal.score !== null && today
+              ? `You sorted ${reveal.score} of 8 right`
+              : ' '}
+        </Words>
+      </View>
+
+      <GestureDetector gesture={pan}>
+        <View
+          style={styles.stage}
+          collapsable={false}
+          onLayout={({ nativeEvent }) => setStageHeight((before) => before || nativeEvent.layout.height)}
+        >
+          {card.rarity !== 'common' && <Rays rarity={card.rarity} size={Math.round(width * 2.1)} glow={glow} turn={turn} />}
+          {card.rarity !== 'common' && !reduced && <Sparks rarity={card.rarity} radius={width * 0.95} burst={burst} />}
+          <Animated.View style={[{ width, height }, cardStyle]}>
+            <Animated.View style={[StyleSheet.absoluteFill, backStyle]}>
+              <Back width={width} height={height} />
+            </Animated.View>
+            <Animated.View style={[StyleSheet.absoluteFill, faceStyle]}>
+              {picture.state === 'ready' ? (
+                <Image source={picture.image} contentFit="cover" style={{ width, height, borderRadius: width * 0.05 }} accessible={false} />
+              ) : (
+                <CardText card={card} width={width} height={height} />
+              )}
+              <Sheen rarity={card.rarity} width={width} height={height} sweep={sweep} tilt={tilt} />
+            </Animated.View>
+          </Animated.View>
+
+          {stage !== 'open' && (
+            <View pointerEvents="none" style={{ position: 'absolute', width: width + 18, height }}>
+              <Animated.View style={[styles.sleeve, { top: height * 0.4, height: height * 0.63 }, sleeveStyle]}>
+                <Words kind="title" style={{ color: colors.deep }} maxFontSizeMultiplier={1}>
+                  Pullday
+                </Words>
+                <Words kind="label" style={{ color: colors.deep }} maxFontSizeMultiplier={1}>
+                  {dayName(reveal.day)}
+                </Words>
+                <View style={styles.sleeveShapes}>
+                  <Shape rarity="common" size={18} color="#8FA5A0" />
+                  <Shape rarity="holo" size={18} color="#8FA5A0" />
+                  <Shape rarity="rare" size={18} color="#8FA5A0" />
+                </View>
+              </Animated.View>
+            </View>
+          )}
+          {stage === 'pulled' && !turnOver && <ActivityIndicator color={colors.ink} style={styles.spinner} />}
+        </View>
+      </GestureDetector>
+
+      <View style={[styles.bottom, { paddingBottom: space.l }]}>
+        {stage === 'open' ? (
+          <>
+            <View style={styles.name}>
+              <Shape rarity={card.rarity} size={22} />
+              <Words kind="heading" numberOfLines={2} style={{ flexShrink: 1 }}>
+                {card.name}
+              </Words>
+            </View>
+            <Words kind="soft" style={styles.centre} numberOfLines={2}>
+              <Words kind="soft" style={{ color: rarityColor[card.rarity] }}>
+                {rarityName[card.rarity]}
+              </Words>
+              , {card.set}, {card.year}
+            </Words>
+            <Button title="Done" onPress={onClose} />
+          </>
+        ) : (
+          <>
+            <View style={styles.name}>
+              <Icon name="up" size={20} color={colors.soft} />
+              <Words kind="label" style={{ color: colors.soft }}>
+                Pull the card up
+              </Words>
+            </View>
+            <Button title="Pull it for me" kind="quiet" onPress={letGo} disabled={stage !== 'sealed'} />
+          </>
+        )}
+      </View>
+    </View>
+  );
+}
+
+/** The same for every card, so it gives nothing away. */
+function Back({ width, height }: { width: number; height: number }) {
+  return (
+    <View style={[styles.back, { width, height, borderRadius: width * 0.05 }]}>
+      <View style={[styles.backInner, { borderRadius: width * 0.035 }]}>
+        <Shape rarity="common" size={width * 0.16} color={colors.line} />
+        <Shape rarity="holo" size={width * 0.34} color={colors.line} />
+        <Shape rarity="rare" size={width * 0.16} color={colors.line} />
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  middle: { alignItems: 'center', justifyContent: 'center', gap: space.l, paddingHorizontal: space.xl },
+  centre: { textAlign: 'center' },
+  top: { paddingTop: space.m, paddingHorizontal: space.l, gap: 2, zIndex: 1 },
+  stage: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  sleeve: { position: 'absolute', left: 0, right: 0, backgroundColor: '#F3F6F3', borderWidth: 6, borderColor: '#D7382F', borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  sleeveShapes: { flexDirection: 'row', gap: 8, marginTop: space.m },
+  spinner: { position: 'absolute' },
+  bottom: { zIndex: 1, paddingHorizontal: space.xl, gap: space.s, minHeight: 150, justifyContent: 'flex-end' },
+  name: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s },
+  back: { backgroundColor: colors.deep, padding: 10 },
+  backInner: { flex: 1, borderWidth: 2, borderColor: colors.line, backgroundColor: colors.raised, alignItems: 'center', justifyContent: 'center', gap: 10 },
+});

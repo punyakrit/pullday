@@ -1,39 +1,49 @@
 # Decisions
 
-Status: step 1 of 8 in `docs/PLAN.md` is done: the backend daily loop. The app is not started.
+Status: steps 1 and 2 of 8 in `docs/PLAN.md`. The backend daily loop and the app's daily loop are built. Tested on an Android emulator (release build) and an iOS simulator. **Not yet on a real phone.**
 
 ## What was built first, and why
 
-Six of the nine bad reviews are about days, money or lost progress. Those are wrong on every phone if the server is wrong, and the server decides what a phone may do offline. So the server rules came first, in a 3 hour box, and everything else goes to the phone. Inside that box the loop was built first (sign up, challenge, card, collection), then made correct.
+Six of the nine bad reviews are about days, money or lost progress. Those are wrong on every phone if the server is wrong, so the server rules came first, in a fixed box. Then the one full loop on the phone, including offline, because a loop that only works online would have to be rebuilt.
 
 ## What counts as a day
 
-**The calendar date in the user's home time zone, kept on the server.** People think of a streak as "I did it on Tuesday", so a rolling 24 hours would punish playing at 9am one day and 10am the next. UTC would end the day mid-afternoon for some. The phone never sends a date, so changing the phone's clock does nothing.
+**The calendar date in the user's home time zone, kept on the server.** People think "I did it on Tuesday". A rolling 24 hours punishes 9am then 10am, and UTC ends the day mid-afternoon for some. The phone never sends a date, so changing its clock does nothing.
 
-**A zone change waits for the end of the current day, once every 7 days.** The end of the running day never moves, so it cannot be used to rescue a day at 11:59pm. The next day is longer going west and shorter going east. Dates never repeat. A day shorter than 4 hours, or one skipped by the date line, cannot break a streak.
+**A zone change waits for the end of the current day, once every 7 days.** The running day's end never moves. The next day is longer going west, shorter going east. Dates never repeat. A day under 4 hours cannot break a streak.
 
-**Late is allowed when it was honest.** A challenge belongs to the day it was issued for. It counts if it arrives that day, or within 60 minutes after if we heard it start, or within 48 hours if that phone already had the bundle and has not talked to us since the day ended. The outbox calls (start, complete, reveal seen) do not count as talking to us, so two offline days can sync one after the other.
+**Late is allowed when it was honest.** It counts if it arrives that day, or within 60 minutes after if we heard it start, or within 48 hours if that phone already had the bundle and has sent nothing but its outbox since the day ended.
 
-**Missed days settle oldest first, on the next contact.** A day with a started challenge is not settled for 60 minutes, so nobody sees a broken streak while still swiping. When a late day arrives, settlement replays from that day, so the result is what it would have been had we known. A freeze it gives back can then save a later day.
+**Missed days settle oldest first, on the next contact.** A late day replays settlement from that day, so the order things arrive in does not matter. A freeze it gives back can save a later day.
 
-**The streak is read from day records, never a counter.** Done adds 1. Frozen and won back hold the run together and add nothing, so a 40 day streak comes back as 40.
+**The streak is read from day records, never a counter.** Frozen and won back days hold it together and add nothing.
 
-**The card is saved before the reveal.** Card, day and streak are one transaction with the user locked. The reveal has its own seen mark and replays until it is set.
+## On the phone
+
+**The outbox is the promise.** Every swipe is saved before it animates away, and the finish is saved before anything is revealed, in one write. Sent in order: start, complete, reveal seen. Nothing else goes first. No streak is shown until it is empty.
+
+**Swipes are decided on the UI thread.** One touch surface, never re-rendered during a challenge, moves whichever card is on top. A card in flight is never in the way. Distance counts, a flick counts, a flick back is a change of mind.
+
+**The reveal starts over until it was seen.** Marked as seen only after the card has been face up for a moment with the app in front. A call, the home button or a kill before that replays it.
+
+**The effects are cheap on purpose.** Gradients and transforms, no blur, no shadow, no particles made in JavaScript. The picture is decoded before the card may turn.
+
+**Only our own 401 logs out.** Hotel wifi, proxies, 5xx and no network never do.
 
 ## Where instructions and brief.md pulled apart
 
-- Binder screens wait, but `collector@` must have 5 pages. The table and seed exist, with no endpoints.
-- A late day gives its freeze back, but the limit is 2. A third is marked `refund_due` and not added. Nothing pays it out yet.
+Binder screens wait, but `collector@` must have 5 pages, so the table and seed exist. A returned freeze that would make 3 is marked `refund_due`, and nothing pays it yet.
 
-## What was cut
+## Cut or not built yet
 
-Payments, shop and binder screens are later steps. Binder is the planned cut. There is no password reset, email check, rate limit or session expiry.
+Streak screen, win back, shop, the full catalogue, card details on the phone, binder (the planned cut). No password reset, email check, rate limit or session expiry.
 
 ## Known limits and what is still broken
 
-- A phone kept offline, or made to send nothing but its outbox, can claim a day up to 48 hours late. Nothing can tell that from a plane. One device kept offline while another is used makes this easy. A quiet start does not widen this: a start on an ended day writes nothing, so sending it changes nothing, and skipping it was always possible.
-- The bundle holds the answers and the reward, so a curious person can read them. The score does not count and the card is theirs anyway.
+- Swipe smoothness is not measured on a real phone. On the emulator, dragging a card and dragging Android's own Settings score the same, so it says nothing.
+- A phone kept offline, or made to send nothing but its outbox, can claim a day up to 48 hours late.
+- The bundle holds the answers and the reward, so a curious person can read them.
+- Offline, the phone chooses the day from its own clock. Moved forward it shows tomorrow, the server refuses it, and the app says so.
+- A 1080 picture is made when first asked for, which can take 20 seconds. The reveal waits 5, then uses the 400.
 - After a trip shorter than 7 days you cannot move your zone straight back.
-- If a won back day turns out to have been done offline, it becomes done, but the $4.99 is not handled. That belongs to payments.
-- The first view of each image is slow: the server has to fetch an original of up to 14 MB. 24 cold images took 20 seconds. After that they are instant. This will hurt the first scroll of the collection unless images are fetched ahead.
-- Nothing has run on a phone yet.
+- A won back day that turns out to have been done offline becomes done, but the $4.99 is not handled.

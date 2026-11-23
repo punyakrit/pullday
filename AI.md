@@ -8,7 +8,23 @@ Step 0 and 1, all of it: the plan, the backend code, SQL, seeds, scripts, tests 
 
 AI also checked the data (1,993 cards, 66 with no number, 799 with no variety, prices end 2026-11-02), probed every image link (27 broken, largest 14.4 MB, some with the wrong content type) and read the current docs for Fastify, sharp, node-postgres and node:test before using them.
 
+Step 2, all of it: the app (Expo SDK 58), its tests, the icons, the image warming script and the Dockerfile. The owner chose the loop, the rules for the outbox and what the dev menu must do. AI chose the look. The Gesture Handler docs did not load, so its version 3 API was read from the installed type files.
+
 ## Where AI was wrong
+
+On the phone (step 2):
+
+- **Half the swipes did not register**, the exact review. A fast flick's last movement arrives only in the gesture's end event, and Android reports zero speed when it saw few touch points. AI decided from the last update, which said nothing had moved. Then each answer re-rendered the touch surface, which could drop the next swipe. Both were found by counting flicks on the emulator: 2 or 3 of 7 at first, 35 of 35 after.
+- **Sorted cards came back.** After the app was killed mid-challenge, cards already thrown would lie on top of the deck.
+- **A ghost challenge.** A half played challenge from before an account reset came back after midnight and held up all contact for an hour.
+- **A gesture could cross decks.** A touch that began on one deck could throw a card on the next.
+- **The sync gave up** when it joined a send that began before the network came back. The app's own tests found it.
+- **The reveal was sized from the window**, so a banner pushed it over its own caption. It also said "Added to your collection" while offline.
+- **Each swipe mounted about 30 views**, because every card carried its own stamps. Now one set follows the top card.
+- **Every size of every picture was kept**, which would have filled the deployed disk. And a picture that failed to decode once was called missing for an hour. One real card was hidden that way.
+- **AI nearly drew the wrong conclusion from frame timings.** They looked bad until the same test on Android's Settings app scored the same.
+
+On the backend (step 1):
 
 - **Tests emptied the real database.** One test file imported from `src/` directly, so the connection opened on the main database before the helper switched it to the test one. Every test in that file passed. It showed up only when the full-day script ran at the same time and was logged out mid-day. Now the tests refuse to run on any other database.
 - **The plane review would have come back.** A start counted as the phone being online, even when it was refused. The app queues the start with the finish, so the start sent the next morning would have made the finish too late. A test asserted this wrong behaviour on purpose. All 185 tests passed. Another Claude session reviewing the code found it, AI in this session did not. Three new tests failed before the fix and pass after it.
@@ -22,6 +38,9 @@ AI also checked the data (1,993 cards, 66 with no number, 799 with no variety, p
 
 ## What we threw away
 
+- Per-card stamps and marks, and mounting cards as they were needed.
+- Testing in the dev client. Its menus were in the way, so everything was checked in a release build.
+- `Image.prefetch` for the reveal card. It only fills the disk. The reveal decodes the picture itself before the card may turn.
 - A branch in the "which day is it" code for a zone change that has not started. It could never run.
 - The first way of choosing a reward, which only preferred cards that were not promised. Now it avoids them when promising and may take one when finishing.
 
