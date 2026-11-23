@@ -5,7 +5,7 @@ import { useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import { Api, Refused, Unreachable } from '../core/api';
 import { Engine } from '../core/engine';
-import { readLogin } from '../core/rows';
+import { LoginKeeper } from '../core/login';
 import type { User } from '../core/types';
 import { API_URL, TEST_ACCOUNTS } from './config';
 import { prefetchBundle } from './images';
@@ -18,7 +18,6 @@ export type Session =
 
 const KEY = 'session';
 const LAST_EMAIL = 'last-email';
-const DEVICE = 'device';
 export const api = new Api({ baseUrl: API_URL, fetch: (...args) => fetch(...args), now: Date.now });
 
 let session: Session = { status: 'loading' };
@@ -38,14 +37,16 @@ export function useSession(): Session {
   return useSyncExternalStore(subscribe, () => session);
 }
 
-/** Made once per install. The server uses it to know this phone from another. */
-function deviceId(): string {
-  const saved = storage.get(DEVICE);
-  if (saved) return saved;
-  const made = Crypto.randomUUID();
-  storage.set(DEVICE, made);
-  return made;
-}
+/** On a full phone this holds for as long as the app is open, and is kept when there is space. */
+const login = new LoginKeeper(
+  storage,
+  {
+    get: () => SecureStore.getItemAsync(KEY),
+    set: (text) => SecureStore.setItemAsync(KEY, text, { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY }),
+    remove: () => SecureStore.deleteItemAsync(KEY),
+  },
+  () => Crypto.randomUUID(),
+);
 
 function enter(user: User, token: string): void {
   api.startSession(token);
@@ -66,16 +67,14 @@ async function leave(message: string | null): Promise<void> {
   api.endSession();
   set({ status: 'out', email: storage.get(LAST_EMAIL) ?? '', message });
   // What is unsent stays on the phone, and is sent when the same account logs in again.
-  await SecureStore.deleteItemAsync(KEY).catch(() => {});
+  await login.forget();
 }
 
 /** Once, when the app opens. Works with no connection. */
 export async function restore(): Promise<void> {
   try {
-    const text = await SecureStore.getItemAsync(KEY);
-    const login = readLogin(text, storage.get(DEVICE));
-    if (login) return enter(login.user, login.token);
-    if (text !== null) await SecureStore.deleteItemAsync(KEY);
+    const kept = await login.restore();
+    if (kept) return enter(kept.user, kept.token);
     set({ status: 'out', email: storage.get(LAST_EMAIL) ?? '', message: null });
   } catch {
     set({ status: 'out', email: storage.get(LAST_EMAIL) ?? '', message: 'This phone could not read your saved login. Log in again.' });
@@ -85,19 +84,17 @@ export async function restore(): Promise<void> {
 async function open(path: '/auth/login' | '/auth/signup', body: object): Promise<void> {
   const { data } = await api.call<{ token: string; user: User }>('POST', path, body);
   storage.set(LAST_EMAIL, data.user.email);
-  await SecureStore.setItemAsync(KEY, JSON.stringify(data), {
-    keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
-  });
+  await login.keep(data);
   enter(data.user, data.token);
 }
 
 export function logIn(email: string, password: string): Promise<void> {
-  return open('/auth/login', { email: email.trim(), password, deviceId: deviceId() });
+  return open('/auth/login', { email: email.trim(), password, deviceId: login.deviceId() });
 }
 
 export function signUp(email: string, password: string): Promise<void> {
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  return open('/auth/signup', { email: email.trim(), password, timezone, deviceId: deviceId() });
+  return open('/auth/signup', { email: email.trim(), password, timezone, deviceId: login.deviceId() });
 }
 
 export async function logOut(): Promise<void> {
@@ -119,7 +116,9 @@ export function explain(err: unknown): string {
 
 // Coming back to the app, or back online, is when to send and refresh.
 AppState.addEventListener('change', (state) => {
-  if (state === 'active' && session.status === 'in') session.engine.wake();
+  if (state !== 'active' || session.status !== 'in') return;
+  void login.retry();
+  session.engine.wake();
 });
 Network.addNetworkStateListener(({ isConnected, isInternetReachable, type }) => {
   if (session.status !== 'in') return;
