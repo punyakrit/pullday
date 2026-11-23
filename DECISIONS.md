@@ -1,6 +1,6 @@
 # Decisions
 
-Status: step 1 of 8 in `docs/PLAN.md`. The backend daily loop is done. The app is not started.
+Status: step 1 of 8 in `docs/PLAN.md` is done: the backend daily loop. The app is not started.
 
 ## What was built first, and why
 

@@ -38,7 +38,7 @@ This plays a full day for `new@pullday.test`: log in, 8 swipes, reveal, card in 
 npm test
 ```
 
-Tests use their own database (`pullday_test`) and do not need the server. They never touch your data.
+Tests use their own database (`pullday_test`) and do not need the server. They never touch your data. Run one at a time: two runs at once share that database and fail each other.
 
 ## Test accounts
 
