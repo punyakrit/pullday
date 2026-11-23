@@ -12,8 +12,8 @@
 | 3 | App: make the loop solid. Outbox, kill mid-swipe, kill mid-reveal, phone call, no wifi, 11:58pm | 2.0 | 8.5 |
 | 4 | Collection (2,000 cards, smooth on a cheap Android) and card details. Built, on an emulator and a simulator so far. Never on a cheap Android | 2.0 | 10.5 |
 | 5 | Streak screen and win back with Stripe test mode. Built, on an emulator and a simulator, with real Stripe test payments | 1.75 | 12.25 |
-| 6 | Shop and the fake store for freezes. Built, tested on the Android emulator only | 1.0 | 13.25 |
-| 7 | Cheap Android pass, empty and error states, the check-in feedback | 1.25 | 14.5 |
+| 6 | Shop and the fake store for freezes. Built, on an emulator and a simulator | 1.0 | 13.25 |
+| 7 | Polish and a new look. Built, on an emulator and a simulator. A cheap Android and the check-in feedback are open | 1.25 | 14.5 |
 | 8 | Recording, README from a fresh clone, final DECISIONS and AI notes | 0.5 | 15.0 |
 
 Planned cut: binder screens. The table and the collector seed exist so the account is complete, but binder pages only get built if step 7 finishes early.

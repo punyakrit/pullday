@@ -8,6 +8,8 @@ Step 0 and 1, all of it: the plan, the backend code, SQL, seeds, scripts, tests 
 
 AI also checked the data (1,993 cards, 66 with no number, 799 with no variety, prices end 2026-11-02), probed every image link (27 broken, largest 14.4 MB, some with the wrong content type) and read the current docs for Fastify, sharp, node-postgres and node:test before using them.
 
+Step 7, all of it: the light look, the motion and four fixes. The owner set the palette, the font, the radius, every motion and the rules for them. AI chose the rolling digits, the black day marks, the launch drawing and the drawn slab for cards with no picture.
+
 Step 6, all of it: the freeze purchases on the server, the fake store, the shop and its tests. The owner set the rules: one grant for each transaction, counted from when it began, refunds recorded, nothing that can cost an offline day.
 
 Step 5, all of it: payments on the server, the fake Stripe, the streak screen, the sheet and the dev menu. The owner set the rules for money, and filled in the keys. AI only checked that they were test keys, and never saw them.
@@ -17,6 +19,16 @@ Step 4, all of it: the collection, card details, chart, their tests and the meas
 Step 2, all of it: the app (Expo SDK 58), its tests, the icons, the image warming script and the Dockerfile. The owner chose the loop, the rules for the outbox and what the dev menu must do. AI chose the look. The Gesture Handler docs did not load, so its version 3 API was read from the installed type files.
 
 ## Where AI was wrong
+
+On the new look (step 7):
+
+- **The first build cut "Done for today" to "Done for"** on Android. Seen in the screenshots.
+- **The grey cards with no picture could not be read.** The wash over grey pictures was also over their words. The owner saw it.
+- **All of Collection was made and downloaded at launch**, before anyone opened it. Found when the owner asked about lazy loading.
+- **A card could be dragged down under the buttons.** The owner found it. It was there since step 2.
+- **The status bar stayed dark on the dark reveal on iOS.** The Android code has no effect there. Seen in a recording.
+- **Every throw started eight springs for one dot.** Found while looking for lost flicks. It was not the cause.
+- **AI took a cached launch picture for a bug**, and nearly a deliberate kill for a crash when the owner sent the report.
 
 On the shop (step 6), and what it found in step 5:
 

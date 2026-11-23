@@ -1,10 +1,24 @@
 # Decisions
 
-Status: steps 1, 2, 4, 5 and 6 of 8 in `docs/PLAN.md`: the backend, the daily loop, the collection with card details, win back, and the shop. **Nothing has been tested on a real phone yet.** Only on an Android emulator and an iOS simulator, with release builds, and **the shop (step 6) only on the Android emulator**. `brief.md` asks for a real phone, so this is open.
+Status: steps 1 to 7 of 8 in `docs/PLAN.md` are built. **Nothing has been tested on a real phone yet.** Only on an Android emulator and an iOS simulator, with release builds. `brief.md` asks for a real phone, so this is open, and so is how anything feels under a thumb.
 
 ## What was built first, and why
 
 Six of the nine bad reviews are about days, money or lost progress. Those are wrong on every phone if the server is wrong, so the server rules came first, in a fixed box. Then the one full loop on the phone, including offline, because a loop that only works online would have to be rebuilt.
+
+## The nine reviews
+
+None of these was checked on a real phone. "Both" is the Android emulator and the iOS simulator.
+
+1. **11:58pm, streak reset.** Fixed: 60 minutes to finish what was begun. Server tests, and played past midnight with the dev menu.
+2. **On the plane, didn't count.** Fixed: today and tomorrow play offline and count up to 48 hours late. Server and app tests, and airplane mode on Android.
+3. **Changes his phone date.** Fixed for that: the phone never sends a date. Tests, and the date moved on the emulator. Left: staying offline can claim a day up to 48 hours late.
+4. **Bought a freeze, still lost the streak.** Fixed: it counts from when the purchase began. Tests, and pending, killed and offline on Android, pending and killed on iOS. The store is a fake.
+5. **Paid to win back, money gone.** Fixed: Stripe is always asked, and what is not honoured is refunded. Tests, and real Stripe test payments on both, killed and cut off in the middle. Left: no webhook from the real Stripe.
+6. **Took a call, the card was gone.** Fixed: saved before it is shown, and it plays again until it was seen. Tests, and killed and left in the middle on Android, pulled by hand on both. No real call.
+7. **Collection lags.** Better, not proven: on the emulator no bare area on hard flings. A cheap phone is the question, and that is open.
+8. **Swiping feels sticky.** Better, not proven: 35 of 35 flicks, and again under load, but some batches lost a few while the emulator was slow (below). A thumb has to say.
+9. **App froze on the rare card.** Better, not proven: light only, moved on the UI thread, and the picture is ready before it turns. Never seen to freeze on either.
 
 ## What counts as a day
 
@@ -23,6 +37,8 @@ Six of the nine bad reviews are about days, money or lost progress. Those are wr
 **The outbox is the promise.** Every swipe is saved while its card is still leaving the screen, and the finish is saved before anything is revealed, in one write. Sent in order: start, complete, reveal seen. Nothing else goes first. Until it is empty the streak is the last known one, and says it may be old. What is saved has a version. A row that cannot be read is kept aside, never fatal. On a full phone play goes on in memory, and no card is shown until the finish is safe.
 
 **Swipes are decided on the UI thread.** One touch surface, never re-rendered, moves whichever card is on top. A card in flight is never in the way.
+
+**Calm and light, so the cards are the only colour.** The reveal is the one dark place. Motion is transform and opacity on the UI thread, runs once per opening, and is off with Reduce Motion. A grid cell is a plain view until it is touched.
 
 **The reveal starts over until it was seen.** A call, the home button or a kill before that replays it. Once a card starts to turn it stays.
 
@@ -53,13 +69,13 @@ Binder (the planned cut). No search. No password reset, email check, rate limit 
 ## Known limits and what is still broken
 
 - Smoothness is only measured on an emulator (`docs/MEASUREMENTS.md`): no bare area on a fast scroll, and frame numbers that say little. The build does not install on a 32 bit phone.
-- On iOS the launch screen still shows the template's drawing.
 - A phone kept offline, or made to send nothing but its outbox, can claim a day up to 48 hours late.
 - The bundle holds the answers and the reward, so a curious person can read them.
 - Offline, the phone chooses the day from its own clock. Moved forward it shows tomorrow, the server refuses it, and the app says so.
-- A 1080 picture is made when first asked for, which can take 20 seconds. The reveal waits 5, then uses the 400.
+- A 1080 picture can take 20 seconds to make. The reward's is made when its challenge is handed out, others when first asked for. 27 pictures are gone at their source, and are drawn as a slab.
 - After a trip shorter than 7 days you cannot move your zone straight back.
 - Money: no webhook from the real Stripe was ever received, only the fake's. A refund that fails is tried every minute, and nobody is told. If a freeze comes back after a win back was paid, the person keeps both. Resetting a test account in the middle of a payment leaves it open at Stripe.
 - Shop: the store is a fake on the phone, so the server takes the phone's word that money was paid, and a refund is only a row. A changed app could begin every day and pay only after a miss. A real store's receipt, with its date, would close both. If a streak is won back while a freeze is pending, the person gets both: nothing is lost, and the offer says so first. A notice that a freeze was used stays if that day later turns out to be done.
-- Small, seen in step 6: the store's sheet slides in but only fades out. With several notices the Buy button is pushed below the fold.
-- Small, seen in step 5: closing the sheet takes about 6 seconds to say "Not paid". After a decline and then a cancel it still says the decline. A "Paid" notice from before a reset by script stays until dismissed. The 3D Secure page shows the name of the Stripe account. The sheet's error red is dim on our dark green. Killing from the dev menu is a real crash.
+- Flicks: three batches in step 7 gave 32, 29 and 28 of 35, with and without the new motion. Minutes later the same builds, and the one from before, gave 35 of 35 four times. The emulator was slow or also being touched, neither is proven. A flick that is heard of late now counts.
+- Small, seen in step 6 and 7: with several notices the Buy button is pushed below the fold. On iOS the card is already half grown when the details fade in. A kill from the dev menu shows macOS's crash report.
+- Small, seen in step 5: closing the sheet takes about 6 seconds to say "Not paid". After a decline and then a cancel it still says the decline. A "Paid" notice from before a reset by script stays until dismissed. The 3D Secure page shows the name of the Stripe account. Killing from the dev menu is a real crash.

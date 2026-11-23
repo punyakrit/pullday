@@ -4,6 +4,7 @@ A card collecting app built around a daily habit. This is a test app for a work 
 
 - `backend/` Node + TypeScript API on Postgres. The daily loop, win back with Stripe, and freezes. The binder is not built.
 - `app/` React Native + TypeScript, Expo SDK 58. The daily loop, the collection and card details, the streak with win back, and the shop. Plus a dev menu. Measurements are in `docs/MEASUREMENTS.md`.
+- Titles are set in Instrument Serif, free under the OFL: `app/assets/fonts/InstrumentSerif-OFL.txt`.
 - `docs/PLAN.md` build order. `DECISIONS.md` what and why. `AI.md` how AI was used.
 
 ## Run the backend
