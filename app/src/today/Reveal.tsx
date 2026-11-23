@@ -225,6 +225,8 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
       { scale: interpolate(flip.value, [0.5, 0.8, 1], [1, 1.05, 1], Extrapolation.CLAMP) },
     ],
   }));
+  // The card is pulled up over the title, so the title makes way.
+  const titleStyle = useAnimatedStyle(() => ({ opacity: interpolate(lift.value, [4, 44], [1, 0], Extrapolation.CLAMP) }));
   const sleeveStyle = useAnimatedStyle(() => ({
     opacity: interpolate(sleeve.value, [0, 0.8, 1], [1, 1, 0]),
     transform: [{ translateY: sleeve.value * height * 0.7 }],
@@ -261,14 +263,14 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
 
   return (
     <View style={styles.screen} onLayout={({ nativeEvent: { layout } }) => setArea({ width: layout.width, height: layout.height })}>
-      <View style={[styles.top, short && styles.topBeside, column]} onLayout={measure('above')}>
+      <Animated.View style={[styles.top, short && styles.topBeside, column, !short && titleStyle]} onLayout={measure('above')}>
         <Words kind={short ? 'label' : 'title'} style={styles.centre} numberOfLines={short ? 1 : undefined} accessibilityRole="header">
           {says.title}
         </Words>
         <Words kind="soft" style={styles.centre}>
           {says.line}
         </Words>
-      </View>
+      </Animated.View>
 
       <GestureDetector gesture={pan}>
         <View style={[styles.stage, column && { marginRight: column.width }]} collapsable={false}>
