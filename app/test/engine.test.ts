@@ -452,6 +452,81 @@ describe('retries', () => {
     assert.equal(world.calls[0], `POST /challenges/${today.challenge.id}/start`);
   });
 
+  const wifi = { connected: true, reachable: true, kind: 'WIFI' };
+  const none = { connected: false, reachable: false, kind: 'NONE' };
+
+  test('a change of signal is not news: nothing is asked and nothing is drawn again', async () => {
+    const { world, engine } = await opened('2026-11-23T12:00:00Z');
+    engine.network(wifi); // the first one, straight after opening
+    await settle();
+    assert.deepEqual(world.calls, []);
+    let drawn = 0;
+    engine.subscribe(() => drawn++);
+    for (let i = 0; i < 20; i++) {
+      world.time += 30_000;
+      engine.network(wifi);
+      await settle();
+    }
+    assert.deepEqual(world.calls, []);
+    assert.equal(drawn, 0);
+  });
+
+  test('a connection that came back, or is of another kind, or now reaches the internet: asked once', async () => {
+    const { world, engine } = await opened('2026-11-23T12:00:00Z');
+    const asked = async (...states: (typeof wifi)[]) => {
+      world.time += 30_000;
+      world.calls = [];
+      for (const state of states) engine.network(state);
+      await settle();
+      return world.calls.join();
+    };
+    const once = 'GET /today,GET /collection';
+    assert.equal(await asked(wifi), once);
+    assert.equal(await asked(none), '');
+    assert.equal(await asked(wifi, wifi, wifi), once);
+    assert.equal(await asked({ ...wifi, kind: 'CELLULAR' }), once);
+    assert.equal(await asked({ ...wifi, reachable: false }), once); // another kind again
+    assert.equal(await asked({ ...wifi, reachable: false }), ''); // hotel wifi, not through yet
+    assert.equal(await asked(wifi), once); // through
+    assert.equal(await asked({ ...wifi, reachable: false }), '');
+  });
+
+  test('the connection comes back with something unsent: sent at once', async () => {
+    const { world, engine, today } = await opened('2026-11-23T12:00:00Z');
+    engine.network(none);
+    world.online = false;
+    engine.answer(today.challenge, 0, 'rare');
+    await settle();
+    world.online = true;
+    engine.network(wifi);
+    await settle();
+    assert.equal(world.calls[0], `POST /challenges/${today.challenge.id}/start`);
+  });
+
+  test('while the last call failed, a change of signal is worth a try, but not all the time', async () => {
+    const { world, engine } = await opened('2026-11-23T12:00:00Z');
+    engine.network(wifi);
+    let tries = 0;
+    world.respond = () => {
+      tries++;
+      return 'down';
+    };
+    await engine.sync();
+    assert.equal(tries, 1);
+    for (let i = 0; i < 10; i++) {
+      world.time += 1_000;
+      engine.network(wifi);
+      await settle();
+    }
+    assert.equal(tries, 3); // at 5 and 10 seconds
+    world.normal();
+    world.time += 5_000;
+    engine.network(wifi);
+    await settle();
+    assert.equal(engine.getSnapshot().connection, 'online');
+    assert.deepEqual(world.calls, ['GET /today', 'GET /collection']);
+  });
+
   test('five syncs at once make one request', async () => {
     const { world, engine } = await opened('2026-11-23T12:00:00Z');
     await Promise.all(Array.from({ length: 5 }, () => engine.sync()));

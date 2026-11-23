@@ -24,6 +24,7 @@ On the phone (step 2):
 - **A waiting card could vanish while it was open**, seconds after it was seen. It was looked up in the server's list of unseen cards, and it had just been seen. AI found it in a test while fixing the flicker and thought the app had to be left first. On the emulator a network event was enough.
 - **The dev menu's offline switch outlived the log out**, so nobody could log in until the app was killed. The owner reported it. Ending a session is now one call that also turns the switch off.
 - **A button that had been busy once stayed "busy" to Android's screen reader.** Buttons had no name of their own. AI found it reading a screen dump.
+- **The app asked the server again at every change of signal**, because Android reports each one as a network event. Three times in 100 seconds untouched. Now none.
 - **Each swipe mounted about 30 views**, because every card carried its own stamps. Now one set follows the top card.
 - **Every size of every picture was kept**, which would have filled the deployed disk. And a picture that failed to decode once was called missing for an hour. The warming run skipped one real card that way.
 - **AI nearly drew the wrong conclusion from frame timings.** They looked bad until the same test on Android's Settings app scored the same.

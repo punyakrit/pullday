@@ -20,6 +20,9 @@ import type { Challenge, Completed, Rarity, Storage, Today, User } from './types
 /** Just asked: no need to ask again. */
 const FRESH_MS = 5_000;
 
+/** What the phone says about its own connection. */
+export type Net = { connected: boolean; reachable: boolean; kind: string };
+
 export type Connection = 'unknown' | 'online' | 'offline' | 'trouble';
 
 export type Snapshot = {
@@ -68,6 +71,8 @@ export class Engine {
   private flushing: Promise<boolean> | null = null;
   private syncRun: Promise<void> | null = null;
   private freshAt = -Infinity;
+  private triedAt = -Infinity;
+  private net: Net | null = null;
   private retryMs = 0;
   private cancelRetry: (() => void) | null = null;
   private stopped = false;
@@ -237,6 +242,19 @@ export class Engine {
     }
   }
 
+  /**
+   * Android reports every change of signal. It is news only when the connection came back, is of
+   * another kind, or now reaches the internet. Or when the last call failed, and any hint is welcome.
+   */
+  network(now: Net): void {
+    const before = this.net;
+    this.net = now;
+    if (!now.connected) return;
+    const news = !before?.connected || before.kind !== now.kind || (now.reachable && !before.reachable);
+    const failed = this.connection === 'offline' || this.connection === 'trouble';
+    if (news || (failed && Math.abs(this.deps.local() - this.triedAt) >= FRESH_MS)) this.wake();
+  }
+
   /** The app came to the front, or the network came back. Several of these arrive together. */
   wake(): void {
     this.publish();
@@ -256,6 +274,7 @@ export class Engine {
 
   private async syncNow(): Promise<void> {
     if (this.stopped) return;
+    this.triedAt = this.deps.local();
     this.syncing = true;
     this.publish();
     // A send that began before the network came back may be about to fail. Then try our own.

@@ -121,6 +121,7 @@ export function explain(err: unknown): string {
 AppState.addEventListener('change', (state) => {
   if (state === 'active' && session.status === 'in') session.engine.wake();
 });
-Network.addNetworkStateListener((state) => {
-  if (state.isConnected && session.status === 'in') session.engine.wake();
+Network.addNetworkStateListener(({ isConnected, isInternetReachable, type }) => {
+  if (session.status !== 'in') return;
+  session.engine.network({ connected: isConnected === true, reachable: isInternetReachable === true, kind: type ?? 'UNKNOWN' });
 });
