@@ -37,6 +37,17 @@ export default function Layout() {
               }}
             />
             <Stack.Screen
+              name="streak"
+              options={{
+                headerShown: true,
+                title: 'Streak',
+                headerShadowVisible: false,
+                headerBackButtonDisplayMode: 'minimal',
+                headerStyle: { backgroundColor: colors.mat },
+                headerTintColor: colors.ink,
+              }}
+            />
+            <Stack.Screen
               name="account"
               options={{
                 presentation: 'modal',

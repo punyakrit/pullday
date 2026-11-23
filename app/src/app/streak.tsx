@@ -1,0 +1,273 @@
+import { type ReactNode, useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { Engine, Snapshot } from '../core/engine';
+import { dateText, money } from '../core/prices';
+import type { Payment } from '../core/state';
+import { type DayStatus, type StreakDay, statusName, streakDays } from '../core/streakDays';
+import type { Today, WinBack } from '../core/types';
+import { useSession } from '../lib/session';
+import { useEngine, useServerNow } from '../lib/useEngine';
+import { payForWinBack } from '../lib/winBack';
+import { countdown } from '../today/Done';
+import { Button } from '../ui/Button';
+import { Flame, Icon } from '../ui/Icons';
+import { Words } from '../ui/Words';
+import { colors, space } from '../ui/theme';
+
+export default function StreakScreen() {
+  const session = useSession();
+  return session.status === 'in' ? <Streak engine={session.engine} /> : null;
+}
+
+function Streak({ engine }: { engine: Engine }) {
+  const snapshot = useEngine(engine);
+  const insets = useSafeAreaInsets();
+  const { today, saved, streakOld, payment, offer } = snapshot;
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xxl }]} contentInsetAdjustmentBehavior="automatic" indicatorStyle="white">
+      {today === null ? (
+        <View style={styles.empty}>
+          <Words kind="heading" style={styles.centre}>
+            {snapshot.connection === 'offline' ? 'Connect to see your streak' : 'Getting your streak'}
+          </Words>
+          {snapshot.connection === 'offline' || snapshot.connection === 'trouble' ? (
+            <Button kind="quiet" title="Try again" onPress={() => void engine.sync()} />
+          ) : (
+            <ActivityIndicator color={colors.soft} />
+          )}
+        </View>
+      ) : (
+        <>
+          <View style={styles.count} accessible accessibilityLabel={`${today.streak} day streak. ${streakOld ? 'Last known, it may be old.' : ''}`}>
+            <Flame size={44} color={streakOld ? colors.soft : colors.rare} />
+            <Words kind="title" style={styles.number}>
+              {today.streak}
+            </Words>
+            <Words kind="heading">{today.streak === 1 ? 'day' : 'days'}</Words>
+          </View>
+          {streakOld && <Old engine={engine} snapshot={snapshot} today={today} />}
+          {snapshot.saved.notices.map((notice) => (
+            <Panel key={notice.id}>
+              <Words>{notice.text}</Words>
+              <Button kind="quiet" title="OK" onPress={() => engine.dismissNotice(notice.id)} />
+            </Panel>
+          ))}
+          {payment && <PaymentPanel engine={engine} payment={payment} offer={offer} />}
+          {offer && <Offer engine={engine} offer={offer} ready={today.paymentsReady} again={payment !== null} />}
+          <Days days={useDays(today, saved)} />
+          <Panel>
+            <View style={styles.row}>
+              <Icon name="freeze" size={22} color={FROZEN} />
+              <Words kind="label" style={styles.grow}>
+                Freezes
+              </Words>
+              <Words kind="label">{today.freezes} of 2</Words>
+            </View>
+            <Words kind="soft">A freeze is used by itself on a day you miss, and your streak stays.</Words>
+          </Panel>
+        </>
+      )}
+    </ScrollView>
+  );
+}
+
+const useDays = (today: Today, saved: Snapshot['saved']) => useMemo(() => streakDays(today, saved), [saved, today]);
+
+function Old({ engine, snapshot, today }: { engine: Engine; snapshot: Snapshot; today: Today }) {
+  const from = new Date(today.now).toLocaleString(undefined, { day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' });
+  return (
+    <View style={styles.old}>
+      <Words kind="soft" style={styles.centre}>
+        The last we knew, from {from}. It may be old.
+        {snapshot.unsent > 0 ? ' A challenge on this phone is not sent yet.' : ''}
+      </Words>
+      <Button kind="quiet" title="Try again" busy={snapshot.syncing} onPress={() => void engine.sync()} />
+    </View>
+  );
+}
+
+function Panel({ children, strong = false }: { children: ReactNode; strong?: boolean }) {
+  return <View style={[styles.panel, strong && styles.strong]}>{children}</View>;
+}
+
+function usePay(engine: Engine) {
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const pay = async () => {
+    setBusy(true);
+    setProblem(null);
+    setProblem(await payForWinBack(engine));
+    setBusy(false);
+  };
+  return { busy, problem, pay: () => void pay() };
+}
+
+function Offer({ engine, offer, ready, again }: { engine: Engine; offer: WinBack; ready: boolean; again: boolean }) {
+  const now = useServerNow(engine, 1_000);
+  const { busy, problem, pay } = usePay(engine);
+  const left = Date.parse(offer.closesAt) - now;
+  if (left <= 0) return null;
+  return (
+    <Panel strong>
+      <Words kind="heading">
+        Your {offer.lostStreak} day streak broke on {dateText(offer.missedDay)}
+      </Words>
+      {ready ? (
+        <>
+          <Words>Win it back and go on from {offer.lostStreak}.</Words>
+          <Words kind="soft" style={styles.tabular} accessibilityLabel={`${countdown(left)} left`}>
+            {countdown(left)} left. Test mode, no real money.
+          </Words>
+          <Button title={`${again ? 'Try again for' : 'Win it back for'} ${money(offer.priceCents)}`} busy={busy} onPress={pay} />
+        </>
+      ) : (
+        <Words>Payments are not set up on this server, so it can&apos;t be won back here.</Words>
+      )}
+      {problem && (
+        <Words style={styles.problem} accessibilityLiveRegion="polite">
+          {problem}
+        </Words>
+      )}
+    </Panel>
+  );
+}
+
+/** What Stripe has said about a payment that was begun. Nothing here is guessed. */
+function PaymentPanel({ engine, payment, offer }: { engine: Engine; payment: Payment; offer: WinBack | null }) {
+  const { busy, problem, pay } = usePay(engine);
+  if (payment.state === 'checking' || payment.state === 'processing') {
+    return (
+      <Panel strong>
+        <View style={styles.row} accessibilityLiveRegion="polite">
+          <ActivityIndicator color={colors.ink} />
+          <Words kind="heading" style={styles.grow}>
+            Checking your payment
+          </Words>
+        </View>
+        <Words kind="soft">This can take a moment. You can leave, it goes on by itself, and you can never pay twice.</Words>
+      </Panel>
+    );
+  }
+  if (payment.state === 'bank') {
+    return (
+      <Panel strong>
+        <Words kind="heading">Your bank has not approved it yet</Words>
+        <Words>No money was taken so far.</Words>
+        <Button title="Go on with the payment" busy={busy} onPress={pay} />
+        <Button kind="quiet" title="Not now" onPress={() => engine.dismissPayment()} />
+        {problem && <Words style={styles.problem}>{problem}</Words>}
+      </Panel>
+    );
+  }
+  const declined = payment.state === 'declined';
+  return (
+    <Panel>
+      <Words kind="heading">{declined ? 'The payment failed' : payment.state === 'canceled' ? 'This payment was closed' : 'Not paid'}</Words>
+      {declined && payment.problem && <Words>{payment.problem}</Words>}
+      <Words>No money was taken.</Words>
+      {!offer && <Button kind="quiet" title="OK" onPress={() => engine.dismissPayment()} />}
+    </Panel>
+  );
+}
+
+const FROZEN = '#8BD3FF';
+const LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const LOOK: Record<DayStatus, { icon: 'check' | 'cross' | 'freeze' | 'back' | null; color: string; fill: string; ring: string }> = {
+  done: { icon: 'check', color: colors.deep, fill: colors.green, ring: colors.green },
+  unsent: { icon: 'check', color: colors.green, fill: 'transparent', ring: colors.green },
+  frozen: { icon: 'freeze', color: colors.deep, fill: FROZEN, ring: FROZEN },
+  won_back: { icon: 'back', color: colors.deep, fill: colors.rare, ring: colors.rare },
+  missed: { icon: 'cross', color: colors.red, fill: 'transparent', ring: colors.red },
+  today: { icon: null, color: colors.ink, fill: 'transparent', ring: colors.ink },
+  late: { icon: null, color: colors.ink, fill: 'transparent', ring: colors.soft },
+  before: { icon: null, color: colors.line, fill: 'transparent', ring: 'transparent' },
+};
+const LEGEND: [DayStatus, string][] = [
+  ['done', 'Done'],
+  ['unsent', 'Not sent yet'],
+  ['frozen', 'Freeze'],
+  ['missed', 'Missed'],
+  ['won_back', 'Won back'],
+];
+
+function Days({ days }: { days: StreakDay[] }) {
+  const weeks = Array.from({ length: Math.ceil(days.length / 7) }, (_, i) => days.slice(i * 7, i * 7 + 7));
+  const used = new Set(days.map((one) => one.status));
+  return (
+    <Panel>
+      <Words kind="label" accessibilityRole="header">
+        Recent days
+      </Words>
+      <View style={styles.week} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        {LETTERS.map((letter, i) => (
+          <Words key={i} kind="soft" style={styles.cell} maxFontSizeMultiplier={1.1}>
+            {letter}
+          </Words>
+        ))}
+      </View>
+      {weeks.map((week) => (
+        <View key={week[0]!.day} style={styles.week}>
+          {Array.from({ length: 7 }, (_, i) => (week[i] ? <Day key={i} one={week[i]} /> : <View key={i} style={styles.cell} />))}
+        </View>
+      ))}
+      <View style={styles.legend}>
+        {LEGEND.filter(([status]) => used.has(status)).map(([status, text]) => (
+          <View key={status} style={styles.key}>
+            <Mark status={status} size={18} />
+            <Words kind="soft" style={styles.small}>
+              {text}
+            </Words>
+          </View>
+        ))}
+      </View>
+    </Panel>
+  );
+}
+
+function Day({ one }: { one: StreakDay }) {
+  return (
+    <View style={styles.cell} accessible={one.status !== 'before'} accessibilityLabel={`${dateText(one.day)}, ${statusName[one.status]}`}>
+      <Mark status={one.status} size={30} day={one.day} />
+    </View>
+  );
+}
+
+/** A shape in every one, never colour alone. */
+function Mark({ status, size, day }: { status: DayStatus; size: number; day?: string }) {
+  const { icon, color, fill, ring } = LOOK[status];
+  return (
+    <View style={[styles.mark, { width: size, height: size, borderRadius: size / 2, backgroundColor: fill, borderColor: ring }, status === 'unsent' && styles.dashed]}>
+      {icon ? (
+        <Icon name={icon} size={size * 0.6} color={color} weight={3} />
+      ) : day ? (
+        <Words kind="soft" style={[styles.small, { color }]} maxFontSizeMultiplier={1}>
+          {Number(day.slice(8))}
+        </Words>
+      ) : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.mat },
+  content: { paddingHorizontal: space.l, paddingTop: space.s, gap: space.m },
+  empty: { minHeight: 300, justifyContent: 'center', gap: space.l },
+  centre: { textAlign: 'center' },
+  count: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s, paddingVertical: space.m },
+  number: { fontSize: 52, lineHeight: 60, fontVariant: ['tabular-nums'] },
+  old: { gap: space.s },
+  panel: { borderRadius: 12, backgroundColor: colors.deep, padding: space.l, gap: space.s },
+  strong: { backgroundColor: colors.raised, borderWidth: 1, borderColor: colors.line },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.m },
+  grow: { flex: 1 },
+  tabular: { fontVariant: ['tabular-nums'] },
+  problem: { color: colors.red },
+  week: { flexDirection: 'row' },
+  cell: { flex: 1, alignItems: 'center', textAlign: 'center', paddingVertical: 3 },
+  mark: { alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
+  dashed: { borderStyle: 'dashed' },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.l, rowGap: space.s, marginTop: space.s },
+  key: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  small: { fontSize: 13, lineHeight: 17 },
+});

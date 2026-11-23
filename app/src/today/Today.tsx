@@ -5,7 +5,7 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { bannerFor } from '../core/banner';
 import type { Engine, Snapshot } from '../core/engine';
-import { GRACE_MS, type View as DayView } from '../core/state';
+import { GRACE_MS, type PaymentState, type View as DayView } from '../core/state';
 import type { Rarity } from '../core/types';
 import { useDayTimer, useEngine, useServerNow } from '../lib/useEngine';
 import { Button } from '../ui/Button';
@@ -79,19 +79,22 @@ function RevealOf({ engine, snapshot, view }: { engine: Engine; snapshot: Snapsh
 }
 
 function Header({ engine, snapshot }: { engine: Engine; snapshot: Snapshot }) {
-  const { streakKnown, today } = snapshot;
+  const { streakOld, today } = snapshot;
   return (
     <View style={styles.header}>
-      <View
-        style={styles.streak}
-        accessible
-        accessibilityLabel={streakKnown ? `Streak, ${today?.streak ?? 0} days` : 'Streak not known until you are online'}
+      <Pressable
+        style={({ pressed }) => [styles.streak, pressed && { opacity: 0.6 }]}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel={today ? `Streak, ${today.streak} days.${streakOld ? ' Last known, it may be old.' : ''}` : 'Streak'}
+        onPress={() => router.push('/streak')}
       >
-        <Flame size={22} color={streakKnown ? colors.rare : colors.line} />
-        <Words kind="heading" style={styles.tabular}>
-          {streakKnown ? today?.streak : ' '}
+        <Flame size={22} color={streakOld ? colors.soft : colors.rare} />
+        <Words kind="heading" style={[styles.tabular, streakOld && { color: colors.soft }]}>
+          {today?.streak ?? ' '}
         </Words>
-      </View>
+        {today && streakOld && <Words kind="soft">?</Words>}
+      </Pressable>
       <View style={styles.tag}>
         <Words kind="soft" maxFontSizeMultiplier={1.1} style={styles.tagText}>
           Test app
@@ -109,6 +112,15 @@ function Header({ engine, snapshot }: { engine: Engine; snapshot: Snapshot }) {
     </View>
   );
 }
+
+const PAYMENT: Record<PaymentState, string> = {
+  checking: 'Checking your payment',
+  processing: 'Checking your payment',
+  bank: 'Your bank has not approved your payment yet',
+  declined: 'Your payment failed. No money was taken.',
+  canceled: 'Your payment was closed. No money was taken.',
+  unpaid: '',
+};
 
 function Line({ engine, snapshot, view }: { engine: Engine; snapshot: Snapshot; view: DayView }) {
   const now = useServerNow(engine, 1_000);
@@ -134,6 +146,17 @@ function Line({ engine, snapshot, view }: { engine: Engine; snapshot: Snapshot; 
           <Icon name="cross" size={18} color={colors.onLabel} />
         </Pressable>
       );
+    case 'payment':
+    case 'winBack': {
+      const text = banner.kind === 'winBack' ? `Your ${banner.lostStreak} day streak broke. Win it back` : PAYMENT[banner.state];
+      return (
+        <Pressable accessibilityRole="button" accessibilityLabel={text} onPress={() => router.push('/streak')} style={[styles.banner, styles.notice]}>
+          {banner.kind === 'payment' && banner.state === 'checking' && <ActivityIndicator color={colors.onLabel} />}
+          <Words style={[styles.noticeText, styles.grow]}>{text}</Words>
+          <Icon name="right" size={18} color={colors.onLabel} />
+        </Pressable>
+      );
+    }
     case 'late':
       return (
         <View style={styles.banner}>
@@ -209,6 +232,7 @@ const styles = StyleSheet.create({
   banner: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginHorizontal: space.l, marginBottom: space.s, paddingHorizontal: space.m, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.deep },
   bannerText: { flexShrink: 1 },
   notice: { backgroundColor: colors.label, justifyContent: 'space-between' },
+  grow: { flex: 1 },
   noticeText: { color: colors.onLabel, flexShrink: 1, fontSize: 15, lineHeight: 20 },
   middle: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.m, paddingHorizontal: space.xl },
   centre: { textAlign: 'center' },
