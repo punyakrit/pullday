@@ -602,6 +602,7 @@ describe('retries', () => {
     await settle();
     assert.equal(engine.getSnapshot().connection, 'online');
     assert.deepEqual(world.calls, ['GET /today', 'GET /collection']);
+    assert.equal(world.backOnline, 1); // told once: the pictures that failed are tried again
   });
 
   test('five syncs at once make one request', async () => {

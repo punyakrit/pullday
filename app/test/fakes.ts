@@ -45,6 +45,7 @@ export class World {
   storage = new MemoryStorage();
   calls: string[] = [];
   signedOut = 0;
+  backOnline = 0;
   timers: { work: () => void; ms: number }[] = [];
   respond: (method: string, path: string) => { status: number; body: unknown } | 'down' = () => ({ status: 200, body: {} });
 
@@ -98,6 +99,7 @@ export class World {
       user,
       local: () => this.time,
       onSignedOut: () => void this.signedOut++,
+      onOnline: () => void this.backOnline++,
       setTimer: (work, ms) => {
         this.timers.push({ work, ms });
         return () => void (this.timers = this.timers.filter((timer) => timer.work !== work));

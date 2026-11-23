@@ -48,6 +48,8 @@ type Deps = {
   user: User;
   local: () => number;
   onSignedOut: () => void;
+  /** The server was heard again after it could not be. */
+  onOnline?: () => void;
   /** Called with the challenges and cards that may be needed soon. */
   onBundle?: (today: Today) => void;
   setTimer?: (work: () => void, ms: number) => () => void;
@@ -252,13 +254,14 @@ export class Engine {
    * Android reports every change of signal. It is news only when the connection came back, is of
    * another kind, or now reaches the internet. Or when the last call failed, and any hint is welcome.
    */
-  network(now: Net): void {
+  network(now: Net): boolean {
     const before = this.net;
     this.net = now;
-    if (!now.connected) return;
+    if (!now.connected) return false;
     const news = !before?.connected || before.kind !== now.kind || (now.reachable && !before.reachable);
     const failed = this.connection === 'offline' || this.connection === 'trouble';
     if (news || (failed && Math.abs(this.deps.local() - this.triedAt) >= FRESH_MS)) this.wake();
+    return news;
   }
 
   /** The app came to the front, or the network came back. Several of these arrive together. */
@@ -376,7 +379,9 @@ export class Engine {
   }
 
   private heard(): void {
+    const again = this.connection === 'offline' || this.connection === 'trouble';
     this.connection = 'online';
+    if (again) this.deps.onOnline?.();
     this.retryMs = 0;
     this.cancelRetry?.();
     this.cancelRetry = null;

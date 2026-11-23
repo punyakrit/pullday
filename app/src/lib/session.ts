@@ -9,6 +9,7 @@ import { LoginKeeper } from '../core/login';
 import type { User } from '../core/types';
 import { API_URL, TEST_ACCOUNTS } from './config';
 import { prefetchBundle } from './images';
+import { pictures } from './pictures';
 import { storage } from './storage';
 
 export type Session =
@@ -57,6 +58,7 @@ function enter(user: User, token: string): void {
     local: Date.now,
     onSignedOut: () => void leave('Your session ended. Log in again to carry on. Nothing on this phone was lost.'),
     onBundle: prefetchBundle,
+    onOnline: () => pictures.retry(),
   });
   set({ status: 'in', user, engine });
   void engine.sync();
@@ -122,5 +124,6 @@ AppState.addEventListener('change', (state) => {
 });
 Network.addNetworkStateListener(({ isConnected, isInternetReachable, type }) => {
   if (session.status !== 'in') return;
-  session.engine.network({ connected: isConnected === true, reachable: isInternetReachable === true, kind: type ?? 'UNKNOWN' });
+  const news = session.engine.network({ connected: isConnected === true, reachable: isInternetReachable === true, kind: type ?? 'UNKNOWN' });
+  if (news) pictures.retry();
 });

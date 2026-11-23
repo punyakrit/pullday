@@ -20,6 +20,8 @@ import { scheduleOnRN } from 'react-native-worklets';
 import type { Reveal as RevealData } from '../core/state';
 import { SEALED, step, wordsFor } from '../core/turn';
 import { haptics } from '../lib/haptics';
+import { imageUrl } from '../lib/images';
+import { usePicture } from '../lib/pictures';
 import { useCardRef } from '../lib/useCardRef';
 import { Button } from '../ui/Button';
 import { CardText, describeCard } from '../ui/CardImage';
@@ -67,6 +69,9 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
     if (!short) setWords((before) => (before[which] === now || (stage !== 'sealed' && before[which] > 0) ? before : { ...before, [which]: now }));
   };
   const picture = useCardRef(card?.id ?? null, width, saved);
+  const why = usePicture(card?.id ?? '', card ? imageUrl(card.id, 400) : '').state === 'none' ? 'none' : 'failed';
+  // 45 of the pictures are shorter than a slab.
+  const faceHeight = picture.state === 'ready' ? Math.min(height, Math.round((width * picture.image.height) / picture.image.width)) : height;
 
   const lift = useSharedValue(0); // how far the finger has pulled the card out
   const sleeve = useSharedValue(0); // 0 around the card, 1 gone
@@ -274,12 +279,14 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
               <Back width={width} height={height} />
             </Animated.View>
             <Animated.View style={[StyleSheet.absoluteFill, faceStyle]}>
-              {picture.state === 'ready' ? (
-                <Image source={picture.image} contentFit="cover" style={{ width, height, borderRadius: width * 0.05 }} accessible={false} />
-              ) : (
-                <CardText card={card} width={width} height={height} />
-              )}
-              <Sheen rarity={card.rarity} width={width} height={height} sweep={sweep} tilt={tilt} />
+              <View style={{ marginTop: (height - faceHeight) / 2, width, height: faceHeight }}>
+                {picture.state === 'ready' ? (
+                  <Image source={picture.image} contentFit="cover" style={{ width, height: faceHeight, borderRadius: width * 0.05 }} accessible={false} />
+                ) : (
+                  <CardText card={card} width={width} height={height} why={why} />
+                )}
+                <Sheen rarity={card.rarity} width={width} height={faceHeight} sweep={sweep} tilt={tilt} />
+              </View>
             </Animated.View>
           </Animated.View>
 

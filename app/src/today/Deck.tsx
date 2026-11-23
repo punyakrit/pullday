@@ -319,7 +319,7 @@ function lie(place: Place, depth: number, across: number) {
   ];
 }
 
-/** Three views and no more. All eight are here before the first swipe, so a swipe mounts nothing. */
+/** All eight are here before the first swipe, so a swipe mounts nothing. */
 const DeckCard = memo(function DeckCard({ card, i, top, place, size, width, height }: DeckCardProps) {
   // 0 on top, 1 next, 2 behind it. Moves up by itself the moment the top card is let go.
   const depth = useDerivedValue(() => withSpring(Math.max(0, i - top.value), STEP));

@@ -12,6 +12,11 @@ Step 2, all of it: the app (Expo SDK 58), its tests, the icons, the image warmin
 
 ## Where AI was wrong
 
+On the phone (step 4):
+
+- **One failed picture was never tried again**, and it said "No picture of this card" when the connection was the problem. The owner reported it.
+- **AI called the 45 odd-shaped pictures bare cards** from their proportions. Looking at them: 44 are stand-in photos from a stock site and one is a bare card.
+
 On the phone (step 2):
 
 - **Half the swipes did not register**, the exact review. A fast flick's last movement arrives only in the gesture's end event, and Android reports zero speed when it saw few touch points. AI decided from the last update, which said nothing had moved. Then each answer re-rendered the touch surface, which could drop the next swipe. Both were found by counting flicks on the emulator: 2 or 3 of 7 at first, 35 of 35 after.

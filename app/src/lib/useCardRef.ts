@@ -2,6 +2,7 @@ import { Image, type ImageRef } from 'expo-image';
 import { useEffect, useState } from 'react';
 import { type Held, type Picture, pictureOf } from '../core/turn';
 import { type ImageWidth, imageUrl, widthFor } from './images';
+import { pictures } from './pictures';
 
 const wait = (ms: number) => new Promise<null>((resolve) => setTimeout(() => resolve(null), ms));
 
@@ -28,6 +29,7 @@ export function useCardRef(cardId: string | null, points: number, saved: boolean
       const small = size === 1080 ? load(400) : null;
       const large = await Promise.race([load(size), wait(5_000)]);
       const image = large ?? (small ? await Promise.race([small, wait(3_000)]) : null);
+      if (!image) void pictures.failed(cardId, imageUrl(cardId, 400)); // asks why, for the words
       if (live) setHeld({ cardId, saved, image });
     })();
     return () => {
