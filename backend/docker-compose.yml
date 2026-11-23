@@ -1,0 +1,21 @@
+name: pullday
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      # Local development only. Bound to this machine, not a secret.
+      POSTGRES_USER: pullday
+      POSTGRES_PASSWORD: pullday
+      POSTGRES_DB: pullday
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - pullday-db:/var/lib/postgresql/data
+    healthcheck:
+      # -h 127.0.0.1: the image runs a temporary socket-only server during init.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "pullday", "-d", "pullday"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+volumes:
+  pullday-db:
