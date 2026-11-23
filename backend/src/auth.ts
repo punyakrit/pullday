@@ -14,7 +14,7 @@ export type User = {
 };
 
 /** Who is calling, and from which phone. */
-export type Caller = { userId: string; deviceId: string };
+export type Caller = { userId: string; deviceId: string; is_test: boolean; dev_offset_ms: number };
 
 export const TEST_EMAILS = ['new', 'today', 'done', 'freeze', 'broken', 'collector'].map(
   (name) => `${name}@pullday.test`,
@@ -107,12 +107,12 @@ export async function logOut(token: string): Promise<void> {
 
 /** The token is the only thing that says who is calling. */
 export async function findCaller(token: string): Promise<Caller | null> {
-  const found = await pool.query<{ user_id: string; device_id: string }>(
-    'select user_id, device_id from sessions where token_hash = $1',
+  const found = await pool.query<Caller>(
+    `select s.user_id as "userId", s.device_id as "deviceId", u.is_test, u.dev_offset_ms
+       from sessions s join users u on u.id = s.user_id where s.token_hash = $1`,
     [hashToken(token)],
   );
-  const row = found.rows[0];
-  return row ? { userId: row.user_id, deviceId: row.device_id } : null;
+  return found.rows[0] ?? null;
 }
 
 /** Locks the user for this transaction, so two phones or two taps run one after the other. */

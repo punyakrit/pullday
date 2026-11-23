@@ -1,0 +1,149 @@
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
+import { type Caller, type User, findCaller, lockUser, logIn, logOut, signUp } from './auth.ts';
+import { type Rarity, cardDetails, packedCatalogue } from './cards.ts';
+import * as challenges from './challenges.ts';
+import { type Db, pool, transaction } from './db.ts';
+import { ApiError } from './errors.ts';
+import { enableDevOffset, now } from './time.ts';
+
+declare module 'fastify' {
+  interface FastifyContextConfig {
+    /** Anyone may call it. */
+    open?: boolean;
+    /** Does not count as this phone having been online. Outbox calls, log out, dev tools. */
+    quiet?: boolean;
+  }
+  interface FastifyRequest {
+    caller: Caller;
+    token: string;
+  }
+}
+
+const UUID = '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$';
+const object = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({
+  type: 'object',
+  properties,
+  required,
+  additionalProperties: false, // an unknown field, such as a date, is refused and not ignored
+});
+const nothing = { type: ['object', 'null'], additionalProperties: false };
+const idParam = object({ id: { type: 'string', pattern: UUID } });
+const login = {
+  email: { type: 'string', maxLength: 254, pattern: '^\\s*[^\\s@\\u0000-\\u001f]+@[^\\s@\\u0000-\\u001f]+\\.[^\\s@\\u0000-\\u001f]+\\s*$' },
+  password: { type: 'string', minLength: 8, maxLength: 200 },
+  deviceId: { type: 'string', pattern: UUID },
+};
+
+/** One transaction with the user locked, so nothing else of theirs runs at the same time. */
+function asUser<T>(request: FastifyRequest, work: (db: Db, user: User) => Promise<T>): Promise<T> {
+  return transaction(async (db) => work(db, await lockUser(db, request.caller.userId)));
+}
+
+export function buildApp(options: { devTools: boolean; logger?: boolean }): FastifyInstance {
+  enableDevOffset(options.devTools);
+  const app = Fastify({
+    logger: options.logger ?? false,
+    bodyLimit: 16 * 1024,
+    ajv: { customOptions: { removeAdditional: false, coerceTypes: false } },
+  });
+
+  app.setErrorHandler((error: Error & { statusCode?: number; validation?: unknown }, request, reply) => {
+    if (error instanceof ApiError) return reply.code(error.status).send({ error: error.code, message: error.message });
+    const status = error.statusCode ?? 500;
+    if (status < 500) return reply.code(status).send({ error: 'bad_request', message: error.message });
+    request.log.error(error);
+    return reply.code(500).send({ error: 'server_error', message: 'Something went wrong on our side. Please try again.' });
+  });
+  app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: 'not_found', message: 'Not found.' }));
+
+  app.addHook('onRequest', async (request) => {
+    const { open, quiet } = request.routeOptions.config;
+    if (open || request.is404) return;
+    const token = /^Bearer (\S+)$/.exec(request.headers.authorization ?? '')?.[1];
+    const caller = token ? await findCaller(token) : null;
+    if (!token || !caller) throw new ApiError(401, 'signed_out', 'Please log in again.');
+    request.caller = caller;
+    request.token = token;
+    // Saved on its own, so it stands even if the request itself is refused.
+    if (!quiet) {
+      await pool.query('update devices set last_contact_at = $3 where user_id = $1 and device_id = $2', [
+        caller.userId,
+        caller.deviceId,
+        now(caller),
+      ]);
+    }
+  });
+
+  app.get('/health', { config: { open: true } }, async () => {
+    await pool.query('select 1');
+    return { ok: true };
+  });
+
+  // Accounts
+
+  app.post<{ Body: { email: string; password: string; timezone: string; deviceId: string } }>(
+    '/auth/signup',
+    { config: { open: true }, schema: { body: object({ ...login, timezone: { type: 'string', maxLength: 64 } }) } },
+    async (request, reply) => reply.code(201).send(await signUp(request.body)),
+  );
+  app.post<{ Body: { email: string; password: string; deviceId: string } }>(
+    '/auth/login',
+    { config: { open: true }, schema: { body: object(login) } },
+    async (request) => logIn(request.body),
+  );
+  app.post('/auth/logout', { config: { quiet: true }, schema: { body: nothing } }, async (request, reply) => {
+    await logOut(request.token);
+    return reply.code(204).send();
+  });
+
+  // The daily loop
+
+  app.get('/today', async (request) =>
+    asUser(request, (db, user) => challenges.getToday(db, user, request.caller.deviceId)),
+  );
+  app.post<{ Params: { id: string } }>(
+    '/challenges/:id/start',
+    { schema: { params: idParam, body: nothing } },
+    async (request) => asUser(request, (db, user) => challenges.start(db, user, request.params.id)),
+  );
+  app.post<{ Params: { id: string }; Body: { answers: Rarity[] } }>(
+    '/challenges/:id/complete',
+    {
+      config: { quiet: true },
+      schema: {
+        params: idParam,
+        body: object({
+          answers: { type: 'array', minItems: 8, maxItems: 8, items: { enum: ['common', 'rare', 'holo'] } },
+        }),
+      },
+    },
+    async (request) =>
+      asUser(request, (db, user) =>
+        challenges.complete(db, user, request.caller.deviceId, request.params.id, request.body.answers),
+      ),
+  );
+  app.post<{ Params: { id: string } }>(
+    '/challenges/:id/reveal-seen',
+    { config: { quiet: true }, schema: { params: idParam, body: nothing } },
+    async (request) => asUser(request, (db, user) => challenges.revealSeen(db, user, request.params.id)),
+  );
+
+  // Cards
+
+  app.get('/collection', async (request) => asUser(request, (db, user) => challenges.getCollection(db, user.id)));
+  app.get('/catalogue', async (request, reply) => {
+    const { etag, json, gzip } = await packedCatalogue();
+    reply.header('etag', etag).header('cache-control', 'private, no-cache').header('vary', 'accept-encoding');
+    if (request.headers['if-none-match'] === etag) return reply.code(304).send();
+    reply.type('application/json; charset=utf-8');
+    if (!/\bgzip\b/.test(request.headers['accept-encoding'] ?? '')) return reply.send(json);
+    return reply.header('content-encoding', 'gzip').send(gzip);
+  });
+  app.get<{ Params: { id: string } }>(
+    '/cards/:id',
+    { schema: { params: object({ id: { type: 'string', pattern: '^c_[0-9]{4}$' } }) } },
+    async (request) => cardDetails(request.params.id, request.caller.userId),
+  );
+
+  return app;
+}
