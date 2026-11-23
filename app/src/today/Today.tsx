@@ -73,7 +73,7 @@ function RevealOf({ engine, snapshot, view }: { engine: Engine; snapshot: Snapsh
   const { reveal } = view;
   const shown = useCallback(() => engine.revealShown(reveal.challengeId), [engine, reveal.challengeId]);
   const close = useCallback(() => engine.closeReveal(), [engine]);
-  // The card can change until the server has answered. Once it is drawn, keep the one that was drawn.
+  // The card can change until the server has answered. Reveal keeps the one it turns over.
   return <Reveal reveal={reveal} today={reveal.day === snapshot.today?.day} onShown={shown} onClose={close} />;
 }
 

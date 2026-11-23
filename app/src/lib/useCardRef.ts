@@ -1,36 +1,39 @@
 import { Image, type ImageRef } from 'expo-image';
 import { useEffect, useState } from 'react';
-import type { Card } from '../core/types';
-import { imageUrl, widthFor } from './images';
-
-export type CardRef = { state: 'loading' } | { state: 'ready'; image: ImageRef } | { state: 'none' };
+import { type Held, type Picture, pictureOf } from '../core/turn';
+import { type ImageWidth, imageUrl, widthFor } from './images';
 
 const wait = (ms: number) => new Promise<null>((resolve) => setTimeout(() => resolve(null), ms));
 
 /**
  * The card's picture, downloaded and decoded at the size it will be shown, so turning it over
  * has nothing left to load. Falls back to the small one, then to the card's words.
+ *
+ * It goes by the card's id. The server's reply brings the same card in a new object, and that is
+ * no reason to load it again.
  */
-export function useCardRef(card: Card | null, points: number): CardRef {
-  const [ref, setRef] = useState<CardRef>({ state: card ? 'loading' : 'none' });
+export function useCardRef(cardId: string | null, points: number, saved: boolean): Picture<ImageRef> {
+  const [held, setHeld] = useState<Held<ImageRef> | null>(null);
+  const size = points > 0 ? widthFor(points) : null;
+  const picture = pictureOf(held, cardId, saved);
+  const loading = picture.state === 'loading';
 
+  // Not when `saved` changes: a load under way is left alone. If it comes to nothing, `held` is new
+  // and it is asked for once more.
   useEffect(() => {
-    if (!card || points <= 0) return;
+    if (cardId === null || size === null || !loading) return;
     let live = true;
-    const load = (width: 200 | 400 | 1080) =>
-      Image.loadAsync({ uri: imageUrl(card.id, width) }, { maxWidth: 1080 }).catch(() => null);
+    const load = (width: ImageWidth) => Image.loadAsync({ uri: imageUrl(cardId, width) }, { maxWidth: 1080 }).catch(() => null);
     void (async () => {
-      setRef({ state: 'loading' });
-      const size = widthFor(points);
       const small = size === 1080 ? load(400) : null;
       const large = await Promise.race([load(size), wait(5_000)]);
       const image = large ?? (small ? await Promise.race([small, wait(3_000)]) : null);
-      if (live) setRef(image ? { state: 'ready', image } : { state: 'none' });
+      if (live) setHeld({ cardId, saved, image });
     })();
     return () => {
       live = false;
     };
-  }, [card, points]);
+  }, [cardId, held, loading, size]);
 
-  return ref;
+  return picture;
 }

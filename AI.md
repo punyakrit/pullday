@@ -20,6 +20,7 @@ On the phone (step 2):
 - **A gesture could cross decks.** A touch that began on one deck could throw a card on the next.
 - **The sync gave up** when it joined a send that began before the network came back. The app's own tests found it.
 - **The reveal was sized from the window**, so a banner pushed it over its own caption. It also said "Added to your collection" while offline.
+- **An open card flickered when the server answered.** The reveal went by the card object, and the reply brings the same card in a new one. So the picture was loaded again on screen, and in the middle of the turn the card hung on its edge and the buzz came 300 ms late. A comment said the card was kept. Nothing kept it. The owner reported it. AI had tested online and offline, never a reply that lands while the card is open.
 - **Each swipe mounted about 30 views**, because every card carried its own stamps. Now one set follows the top card.
 - **Every size of every picture was kept**, which would have filled the deployed disk. And a picture that failed to decode once was called missing for an hour. The warming run skipped one real card that way.
 - **AI nearly drew the wrong conclusion from frame timings.** They looked bad until the same test on Android's Settings app scored the same.

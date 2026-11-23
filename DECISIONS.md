@@ -24,7 +24,7 @@ Six of the nine bad reviews are about days, money or lost progress. Those are wr
 
 **Swipes are decided on the UI thread.** One touch surface, never re-rendered during a challenge, moves whichever card is on top. A card in flight is never in the way. Distance counts, a flick counts, a flick back is a change of mind.
 
-**The reveal starts over until it was seen.** Marked as seen only after the card has been face up for a moment with the app in front. A call, the home button or a kill before that replays it.
+**The reveal starts over until it was seen.** Marked as seen only after the card has been face up for a moment with the app in front. A call, the home button or a kill before that replays it. Once a card starts to turn it stays: a late reply changes the words, never the card.
 
 **The effects are cheap on purpose.** Gradients and transforms, no blur, no shadow, no particles made in JavaScript. The picture is decoded before the card may turn.
 

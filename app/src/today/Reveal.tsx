@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, AppState, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
@@ -18,6 +18,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { Reveal as RevealData } from '../core/state';
+import { SEALED, step, wordsFor } from '../core/turn';
 import { haptics } from '../lib/haptics';
 import { useCardRef } from '../lib/useCardRef';
 import { Button } from '../ui/Button';
@@ -46,17 +47,19 @@ const dayName = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString
  * shows. Marked as seen only once it has been face up for a moment with the app in front.
  */
 export function Reveal({ reveal, today, onShown, onClose }: Props) {
-  const { card } = reveal;
   const window = useWindowDimensions();
   const reduced = useReducedMotion();
-  const [stage, setStage] = useState<'sealed' | 'pulled' | 'open'>('sealed');
+  const [turned, send] = useReducer(step, SEALED);
+  const { stage } = turned;
+  // Once it starts to turn over, whatever the server says next, this is the card on the screen.
+  const { card, saved } = turned.drawn ?? reveal;
   const shown = useRef(false);
 
   // Measured once, so a banner coming or going does not resize the card in the middle of it.
   const [stageHeight, setStageHeight] = useState(0);
   const width = stageHeight > 0 ? Math.floor(Math.min(window.width * 0.68, (stageHeight - 36) / CARD_RATIO)) : 0;
   const height = Math.floor(width * CARD_RATIO);
-  const picture = useCardRef(card, width);
+  const picture = useCardRef(card?.id ?? null, width, saved);
 
   const lift = useSharedValue(0); // how far the finger has pulled the card out
   const sleeve = useSharedValue(0); // 0 around the card, 1 gone
@@ -85,7 +88,7 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
   const reset = useCallback(() => {
     for (const value of [lift, sleeve, flip, glow, turn, sweep, burst, tilt]) value.value = 0;
     sealed.value = true;
-    setStage('sealed');
+    send({ kind: 'reset' });
   }, [burst, flip, glow, lift, sealed, sleeve, sweep, tilt, turn]);
 
   // A call, the home button, another app: if it was not seen yet, it starts over.
@@ -97,7 +100,7 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
   }, [reset]);
 
   const openSleeve = useCallback(() => {
-    setStage((now) => (now === 'sealed' ? 'pulled' : now));
+    send({ kind: 'pull' });
     haptics.pull();
   }, []);
 
@@ -142,10 +145,16 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
   });
 
   // Turn it over only once the picture is decoded, so nothing pops in afterwards.
-  const turnOver = stage === 'pulled' && (card === null || picture.state !== 'loading');
+  const ready = stage === 'pulled' && picture.state !== 'loading';
   useEffect(() => {
-    if (!turnOver) return;
-    const rarity = card?.rarity ?? 'common';
+    if (ready && reveal.card) send({ kind: 'ready', reveal: { ...reveal, card: reveal.card } });
+  }, [ready, reveal]);
+
+  // Once for each turn. Nothing it depends on changes while the card is turning.
+  useEffect(() => {
+    if (turned.stage !== 'turning') return;
+    const { card } = turned.drawn;
+    const { rarity } = card;
     const special = rarity !== 'common';
     if (reduced) {
       flip.value = withTiming(1, { duration: 260, reduceMotion: ReduceMotion.Never });
@@ -167,13 +176,13 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
       () => {
         if (special) haptics.special();
         else haptics.common();
-        setStage('open');
-        if (card) AccessibilityInfo.announceForAccessibility(`Your card. ${describeCard(card)}. ${rarityName[card.rarity]}.`);
+        send({ kind: 'face' });
+        AccessibilityInfo.announceForAccessibility(`Your card. ${describeCard(card)}. ${rarityName[card.rarity]}.`);
       },
       reduced ? 120 : 160 + FLIP_MS * 0.6,
     );
     return () => clearTimeout(face);
-  }, [burst, card, flip, glow, reduced, sweep, tilt, turn, turnOver]);
+  }, [burst, flip, glow, reduced, sweep, tilt, turn, turned]);
 
   useEffect(() => {
     if (stage !== 'open') return;
@@ -209,8 +218,6 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
     transform: [{ translateY: sleeve.value * height * 0.7 }],
   }));
 
-  const title = stage === 'open' ? (reveal.saved ? 'Added to your collection' : 'Your new card') : today ? "Today's card" : `${dayName(reveal.day)}'s card`;
-
   if (card === null) {
     return (
       <View style={[styles.screen, styles.middle]}>
@@ -232,20 +239,22 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
     );
   }
 
+  const words =
+    stage === 'open'
+      ? wordsFor(card, reveal)
+      : {
+          title: today ? "Today's card" : `${dayName(reveal.day)}'s card`,
+          line: reveal.score !== null && today ? `You sorted ${reveal.score} of 8 right` : ' ',
+        };
+
   return (
     <View style={styles.screen}>
       <View style={styles.top}>
         <Words kind="title" style={styles.centre} accessibilityRole="header">
-          {title}
+          {words.title}
         </Words>
         <Words kind="soft" style={styles.centre}>
-          {stage === 'open'
-            ? reveal.saved
-              ? ' '
-              : "It joins your collection when you're online"
-            : reveal.score !== null && today
-              ? `You sorted ${reveal.score} of 8 right`
-              : ' '}
+          {words.line}
         </Words>
       </View>
 
@@ -288,7 +297,7 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
               </Animated.View>
             </View>
           )}
-          {stage === 'pulled' && !turnOver && <ActivityIndicator color={colors.ink} style={styles.spinner} />}
+          {stage === 'pulled' && !ready && <ActivityIndicator color={colors.ink} style={styles.spinner} />}
         </View>
       </GestureDetector>
 
