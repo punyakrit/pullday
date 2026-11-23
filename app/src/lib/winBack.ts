@@ -28,7 +28,7 @@ export async function payForWinBack(engine: Engine): Promise<string | null> {
       return 'The payment form could not be opened. Try again in a moment.';
     }
     const { error } = await presentPaymentSheet();
-    // Whatever it says, Stripe is asked. Closed by hand means nothing can be on its way.
+    // Whatever it says, Stripe is asked.
     await engine.sheetClosed(error?.code === PaymentSheetError.Canceled);
     return null;
   } catch (err) {

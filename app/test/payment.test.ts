@@ -164,12 +164,23 @@ describe('what Stripe says', () => {
     assert.ok(await engine.beginPayment()); // the same one again
   });
 
-  test('closed by hand: back to the offer at once', async () => {
-    const { engine } = await broken();
+  test('closed by hand: back to the offer once Stripe has said it twice', async () => {
+    const { world, engine } = await broken();
     await engine.beginPayment();
     await engine.sheetClosed(true);
+    assert.equal(state(engine), 'checking');
+    await pass(world, 1);
     assert.equal(state(engine), 'unpaid');
     assert.deepEqual(engine.getSnapshot().offer, OFFER);
+  });
+
+  test('closed by hand after a connection error, but the card was charged: paid', async () => {
+    const { world, engine, stripe } = await broken();
+    await engine.beginPayment();
+    await engine.sheetClosed(true);
+    stripe.state = 'paid';
+    await pass(world, 1);
+    assert.deepEqual(notices(engine), ['Paid. Your 40 day streak is back.']);
   });
 
   test('the bank is asked: it can be gone on with, or left', async () => {

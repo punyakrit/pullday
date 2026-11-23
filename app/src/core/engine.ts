@@ -391,7 +391,9 @@ export class Engine {
 
   /** The sheet is gone. What it said is not the answer: Stripe is asked. */
   sheetClosed(canceled: boolean): Promise<void> {
-    this.checks = canceled ? UNPAID_CHECKS : 0; // closed by hand, so nothing can be on its way
+    // Closed by hand, nothing is likely to be on its way. But a connection error may have come before that,
+    // and the card may have been charged all the same. So Stripe is asked twice.
+    this.checks = canceled ? UNPAID_CHECKS - 1 : 0;
     return this.checkPayment();
   }
 
