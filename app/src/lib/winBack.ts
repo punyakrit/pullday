@@ -20,9 +20,12 @@ export async function payForWinBack(engine: Engine): Promise<string | null> {
       allowsDelayedPaymentMethods: false, // card only
       link: { display: PaymentSheet.LinkDisplay.NEVER },
       returnURL: 'pulldaytest://stripe-redirect',
-      style: 'alwaysDark',
+      style: 'alwaysLight',
       primaryButtonLabel: 'Pay $4.99',
-      appearance: { colors: { primary: colors.green, background: colors.deep, primaryText: colors.ink } },
+      appearance: {
+        shapes: { borderRadius: 14 },
+        colors: { primary: colors.ink, background: colors.page, componentBackground: colors.panel, componentBorder: colors.line, primaryText: colors.ink, secondaryText: colors.soft, error: colors.red },
+      },
     });
     if (opened.error) {
       await engine.sheetClosed(true);

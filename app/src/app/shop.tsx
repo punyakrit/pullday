@@ -12,8 +12,10 @@ import { StoreSheet } from '../shop/StoreSheet';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icons';
 import { Panel } from '../ui/Panel';
+import { Opening, Rise } from '../ui/Rise';
+import { Roll } from '../ui/Roll';
 import { Words } from '../ui/Words';
-import { colors, frozen, space } from '../ui/theme';
+import { colors, space } from '../ui/theme';
 
 const MOST = 2;
 
@@ -28,31 +30,40 @@ function Shop({ engine }: { engine: Engine }) {
   const { today, saved, buying, connection } = snapshot;
   const cut = connection === 'offline' || connection === 'trouble';
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xxl }]} contentInsetAdjustmentBehavior="automatic" indicatorStyle="white">
-      {today === null ? (
-        <View style={styles.empty}>
-          <Words kind="heading" style={styles.centre}>
-            {cut ? 'Connect to see the shop' : 'Opening the shop'}
-          </Words>
-          {cut ? <Button kind="quiet" title="Try again" onPress={() => void engine.sync()} /> : <ActivityIndicator color={colors.soft} />}
-        </View>
-      ) : (
-        <>
-          <Owned count={today.freezes} old={snapshot.streakOld} />
-          {saved.notices.map((notice) => (
-            <Panel key={notice.id}>
-              <Words>{notice.text}</Words>
-              <Button kind="quiet" title="OK" onPress={() => engine.dismissNotice(notice.id)} />
-            </Panel>
-          ))}
-          {saved.purchases.map((purchase) =>
-            purchase.id === buying ? null : <PurchasePanel key={purchase.id} engine={engine} purchase={purchase} cut={cut} />,
-          )}
-          <Freeze engine={engine} snapshot={snapshot} full={today.freezes >= MOST} />
-        </>
-      )}
-      <StoreSheet />
-    </ScrollView>
+    <Opening>
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xxl }]}
+        contentInsetAdjustmentBehavior="automatic"
+        indicatorStyle="black"
+      >
+        {today === null ? (
+          <View style={styles.empty}>
+            <Words kind="heading" style={styles.centre}>
+              {cut ? 'Connect to see the shop' : 'Opening the shop'}
+            </Words>
+            {cut ? <Button kind="quiet" title="Try again" onPress={() => void engine.sync()} /> : <ActivityIndicator color={colors.soft} />}
+          </View>
+        ) : (
+          <>
+            <Rise>
+              <Owned count={today.freezes} old={snapshot.streakOld} />
+            </Rise>
+            {saved.notices.map((notice) => (
+              <Panel key={notice.id}>
+                <Words>{notice.text}</Words>
+                <Button kind="quiet" title="OK" onPress={() => engine.dismissNotice(notice.id)} />
+              </Panel>
+            ))}
+            {saved.purchases.map((purchase) => (purchase.id === buying ? null : <PurchasePanel key={purchase.id} engine={engine} purchase={purchase} cut={cut} />))}
+            <Rise at={1}>
+              <Freeze engine={engine} snapshot={snapshot} full={today.freezes >= MOST} />
+            </Rise>
+          </>
+        )}
+        <StoreSheet />
+      </ScrollView>
+    </Opening>
   );
 }
 
@@ -63,11 +74,11 @@ function Owned({ count, old }: { count: number; old: boolean }) {
       <View style={styles.places}>
         {Array.from({ length: MOST }, (_, i) => (
           <View key={`${i}-${i < count}`} style={[styles.place, i < count ? styles.filled : styles.free]}>
-            {i < count && <Icon name="freeze" size={40} color={colors.deep} />}
+            {i < count && <Icon name="freeze" size={40} color={colors.frozen} />}
           </View>
         ))}
       </View>
-      <Words kind="heading">
+      <Words kind="heading" style={styles.full}>
         You have {count} of {MOST}
       </Words>
       {old && <Words kind="soft">The last we knew. It may be old.</Words>}
@@ -94,10 +105,10 @@ function PurchasePanel({ engine, purchase, cut }: { engine: Engine; purchase: Pu
   const over = isOver(purchase);
   const working = purchase.state === 'processing' || purchase.state === 'paid';
   return (
-    <Panel strong={!over}>
+    <Panel>
       <View style={styles.row} accessibilityLiveRegion="polite">
         {working && <ActivityIndicator color={colors.ink} />}
-        {purchase.state === 'pending' && <Icon name="clock" size={22} color={colors.rare} />}
+        {purchase.state === 'pending' && <Icon name="clock" size={22} color={colors.flame} />}
         <Words kind="heading" style={styles.grow}>
           {title}
         </Words>
@@ -129,7 +140,7 @@ function Freeze({ engine, snapshot, full }: { engine: Engine; snapshot: Snapshot
         <Words kind="heading" style={styles.grow}>
           {PRODUCT.name}
         </Words>
-        <Words kind="heading">{PRODUCT.price}</Words>
+        <Roll text={PRODUCT.price} size={27} />
       </View>
       <Words>Miss a day, and a freeze is used by itself. Your streak stays. The missed day adds nothing to it.</Words>
       <Words kind="soft">It covers days that end after you buy it. You can hold {MOST}. Test store, no real money.</Words>
@@ -155,20 +166,22 @@ function Freeze({ engine, snapshot, full }: { engine: Engine; snapshot: Snapshot
 function why(engine: Engine, err: unknown): string {
   if (err instanceof Refused) return `${err.message} Nothing was charged.`;
   if (engine.waitsFor() === 'finish') return 'Finish the challenge you started first. Nothing was charged.';
-  if (err instanceof Unreachable) return err.kind === 'server' ? 'Pullday is having trouble. Nothing was charged. Try again in a moment.' : 'Connect to buy a freeze. Nothing was charged.';
+  if (err instanceof Unreachable)
+    return err.kind === 'server' ? 'Pullday is having trouble. Nothing was charged. Try again in a moment.' : 'Connect to buy a freeze. Nothing was charged.';
   return "This phone can't save right now, so nothing was bought. It may be out of space.";
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.mat },
+  screen: { flex: 1, backgroundColor: colors.page },
   content: { paddingHorizontal: space.l, paddingTop: space.s, gap: space.m },
   empty: { minHeight: 300, justifyContent: 'center', gap: space.l },
   centre: { textAlign: 'center' },
+  full: { alignSelf: 'stretch', textAlign: 'center' },
   owned: { alignItems: 'center', gap: space.s, paddingVertical: space.m },
   places: { flexDirection: 'row', gap: space.m },
-  place: { width: 76, height: 96, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
-  filled: { backgroundColor: frozen, borderColor: frozen, borderStyle: 'solid' },
-  free: { borderColor: colors.line, borderStyle: 'dashed' },
+  place: { width: 76, height: 96, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
+  filled: { backgroundColor: colors.frozenFill, borderColor: colors.frozenFill, borderStyle: 'solid' },
+  free: { borderColor: '#C9C9C9', borderStyle: 'dashed' },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.m },
   grow: { flex: 1 },
 });

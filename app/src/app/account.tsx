@@ -11,6 +11,7 @@ import { store } from '../lib/store';
 import { useEngine, useServerNow } from '../lib/useEngine';
 import { Button } from '../ui/Button';
 import { Words } from '../ui/Words';
+import { hairline } from '../ui/hairline';
 import { colors, space } from '../ui/theme';
 
 export default function Account() {
@@ -214,8 +215,8 @@ function DevMenu({ engine, user }: { engine: Engine; user: User }) {
         <Switch
           accessibilityLabel="Pretend there is no connection"
           value={offline}
-          trackColor={{ true: colors.rare, false: colors.line }}
-          thumbColor={colors.ink}
+          trackColor={{ true: colors.ink, false: '#C9C9C9' }}
+          thumbColor={colors.panel}
           onValueChange={(on) => {
             api.pretendOffline = on;
             setOffline(on);
@@ -246,12 +247,12 @@ function DevMenu({ engine, user }: { engine: Engine; user: User }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.mat },
+  screen: { flex: 1, backgroundColor: colors.page },
   content: { padding: space.xl, gap: space.l },
-  dev: { gap: space.m, marginTop: space.m, paddingTop: space.l, borderTopWidth: 1, borderTopColor: colors.line },
+  dev: { gap: space.m, marginTop: space.m, paddingTop: space.l, borderTopWidth: hairline, borderTopColor: colors.line },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.m, minHeight: 48 },
   shrink: { flexShrink: 1 },
-  said: { color: colors.rare },
+  said: { color: colors.green },
   group: { gap: space.s },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s },
   action: { flexGrow: 1, flexBasis: '46%' },

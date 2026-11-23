@@ -6,6 +6,7 @@ import { explain, logIn, signUp, useSession } from '../lib/session';
 import { Button } from '../ui/Button';
 import { Shape } from '../ui/Icons';
 import { Words } from '../ui/Words';
+import { hairline } from '../ui/hairline';
 import { colors, space } from '../ui/theme';
 
 export default function Login() {
@@ -42,7 +43,7 @@ export default function Login() {
             <Shape rarity="holo" size={40} />
             <Shape rarity="rare" size={26} />
           </View>
-          <Words kind="title" accessibilityRole="header">
+          <Words kind="title" style={styles.brand} accessibilityRole="header">
             Pullday
           </Words>
           <Words kind="soft">A card a day. This is a test app.</Words>
@@ -62,7 +63,7 @@ export default function Login() {
               submitBehavior="submit"
               editable={!busy}
               accessibilityLabel="Email"
-              selectionColor={colors.rare}
+              selectionColor={colors.ink}
               style={styles.field}
             />
             <Words kind="label">Password</Words>
@@ -78,7 +79,7 @@ export default function Login() {
               onSubmitEditing={() => void submit()}
               editable={!busy}
               accessibilityLabel="Password"
-              selectionColor={colors.rare}
+              selectionColor={colors.ink}
               style={styles.field}
             />
             {problem && (
@@ -128,14 +129,15 @@ export default function Login() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.mat },
+  screen: { flex: 1, backgroundColor: colors.page },
   fill: { flex: 1 },
   content: { flexGrow: 1, justifyContent: 'center', padding: space.xl, gap: space.xs },
   mark: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginBottom: space.m },
+  brand: { fontSize: 54, lineHeight: 60, letterSpacing: -1.6 },
   form: { gap: space.s, marginTop: space.xl },
-  field: { minHeight: 52, borderRadius: 10, paddingHorizontal: 14, fontSize: 17, color: colors.ink, backgroundColor: colors.deep, borderWidth: 1.5, borderColor: colors.line, marginBottom: space.s },
+  field: { minHeight: 52, borderRadius: 14, paddingHorizontal: 16, fontSize: 17, color: colors.ink, backgroundColor: colors.panel, borderWidth: hairline, borderColor: '#BDBDBD', marginBottom: space.s },
   problem: { color: colors.red, marginBottom: space.s },
   tests: { marginTop: space.xl, gap: space.s },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s },
-  chip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 8, backgroundColor: colors.raised },
+  chip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.panel, borderWidth: hairline, borderColor: colors.line },
 });

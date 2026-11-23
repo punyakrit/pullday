@@ -5,6 +5,7 @@ import { PRODUCT } from '../core/store';
 import { store, useStoreSheet } from '../lib/store';
 import { Icon } from '../ui/Icons';
 import { Words } from '../ui/Words';
+import { hairline } from '../ui/hairline';
 import { colors, space } from '../ui/theme';
 
 /** The fake store's own sheet. A real store would draw this, over everything. */
@@ -22,22 +23,16 @@ export function StoreSheet() {
           style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, space.l) + space.s }]}
           accessibilityViewIsModal
         >
-          <Words kind="label" style={styles.dark}>
-            Test store
-          </Words>
+          <Words kind="label">Test store</Words>
           <View style={styles.row}>
             <View style={styles.icon}>
-              <Icon name="freeze" size={30} color={colors.mat} />
+              <Icon name="freeze" size={30} color={colors.frozen} />
             </View>
             <View style={styles.grow}>
-              <Words kind="heading" style={styles.dark}>
-                {PRODUCT.name}
-              </Words>
+              <Words kind="heading">{PRODUCT.name}</Words>
               <Words style={styles.grey}>Pullday Test</Words>
             </View>
-            <Words kind="heading" style={styles.dark}>
-              {PRODUCT.price}
-            </Words>
+            <Words kind="heading">{PRODUCT.price}</Words>
           </View>
           <Words style={styles.grey}>This is not a real store. No money is taken.</Words>
           <View style={styles.buy}>
@@ -50,7 +45,13 @@ export function StoreSheet() {
               style={({ pressed }) => [styles.button, pressed && { opacity: 0.8 }]}
               onPress={() => store.pay()}
             >
-              {sheet?.busy ? <ActivityIndicator color={colors.label} /> : <Words kind="label">Buy</Words>}
+              {sheet?.busy ? (
+                <ActivityIndicator color={colors.onInk} />
+              ) : (
+                <Words kind="label" style={{ color: colors.onInk }}>
+                  Buy
+                </Words>
+              )}
             </Pressable>
           </View>
           <Pressable
@@ -61,9 +62,7 @@ export function StoreSheet() {
             style={({ pressed }) => [styles.cancel, (pressed || sheet?.busy) && { opacity: sheet?.busy ? 0 : 0.6 }]} // keeps its place, so nothing jumps
             onPress={close}
           >
-            <Words kind="label" style={styles.dark}>
-              Cancel
-            </Words>
+            <Words kind="label">Cancel</Words>
           </Pressable>
         </Animated.View>
       </View>
@@ -73,14 +72,21 @@ export function StoreSheet() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, justifyContent: 'flex-end' },
-  shade: { ...StyleSheet.absoluteFill, backgroundColor: '#00000099' },
-  sheet: { backgroundColor: colors.label, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: space.xl, gap: space.l },
+  shade: { ...StyleSheet.absoluteFill, backgroundColor: '#00000066' },
+  sheet: {
+    backgroundColor: colors.panel,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: hairline,
+    borderColor: colors.line,
+    padding: space.xl,
+    gap: space.l,
+  },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.l },
   grow: { flex: 1 },
-  icon: { width: 56, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#D3EEFF' },
-  dark: { color: colors.onLabel },
-  grey: { color: '#4A6663' },
+  icon: { width: 56, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.frozenFill },
+  grey: { color: colors.soft },
   cancel: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  buy: { borderRadius: 10, overflow: 'hidden' },
-  button: { minHeight: 52, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.mat },
+  buy: { borderRadius: 14, overflow: 'hidden' },
+  button: { minHeight: 52, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink },
 });

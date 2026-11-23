@@ -12,10 +12,13 @@ import { useEngine, useServerNow } from '../lib/useEngine';
 import { payForWinBack } from '../lib/winBack';
 import { countdown } from '../today/Done';
 import { Button } from '../ui/Button';
-import { Flame, Icon } from '../ui/Icons';
+import { Icon } from '../ui/Icons';
+import { LiveFlame } from '../ui/LiveFlame';
 import { Panel } from '../ui/Panel';
+import { Opening, Pop, Rise } from '../ui/Rise';
+import { Roll } from '../ui/Roll';
 import { Words } from '../ui/Words';
-import { colors, frozen, space } from '../ui/theme';
+import { colors, space } from '../ui/theme';
 
 export default function StreakScreen() {
   const session = useSession();
@@ -26,57 +29,79 @@ function Streak({ engine }: { engine: Engine }) {
   const snapshot = useEngine(engine);
   const insets = useSafeAreaInsets();
   const { today, saved, streakOld, payment, offer } = snapshot;
+  const days = useMemo(() => (today ? streakDays(today, saved) : []), [saved, today]);
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xxl }]} contentInsetAdjustmentBehavior="automatic" indicatorStyle="white">
-      {today === null ? (
-        <View style={styles.empty}>
-          <Words kind="heading" style={styles.centre}>
-            {snapshot.connection === 'offline' ? 'Connect to see your streak' : 'Getting your streak'}
-          </Words>
-          {snapshot.connection === 'offline' || snapshot.connection === 'trouble' ? (
-            <Button kind="quiet" title="Try again" onPress={() => void engine.sync()} />
-          ) : (
-            <ActivityIndicator color={colors.soft} />
-          )}
-        </View>
-      ) : (
-        <>
-          <View style={styles.count} accessible accessibilityLabel={`${today.streak} day streak. ${streakOld ? 'Last known, it may be old.' : ''}`}>
-            <Flame size={44} color={streakOld ? colors.soft : colors.rare} />
-            <Words kind="title" style={styles.number}>
-              {today.streak}
+    <Opening>
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xxl }]}
+        contentInsetAdjustmentBehavior="automatic"
+        indicatorStyle="black"
+      >
+        {today === null ? (
+          <View style={styles.empty}>
+            <Words kind="heading" style={styles.centre}>
+              {snapshot.connection === 'offline' ? 'Connect to see your streak' : 'Getting your streak'}
             </Words>
-            <Words kind="heading">{today.streak === 1 ? 'day' : 'days'}</Words>
+            {snapshot.connection === 'offline' || snapshot.connection === 'trouble' ? (
+              <Button kind="quiet" title="Try again" onPress={() => void engine.sync()} />
+            ) : (
+              <ActivityIndicator color={colors.soft} />
+            )}
           </View>
-          {streakOld && <Old engine={engine} snapshot={snapshot} today={today} />}
-          {snapshot.saved.notices.map((notice) => (
-            <Panel key={notice.id}>
-              <Words>{notice.text}</Words>
-              <Button kind="quiet" title="OK" onPress={() => engine.dismissNotice(notice.id)} />
-            </Panel>
-          ))}
-          {payment && <PaymentPanel engine={engine} payment={payment} offer={offer} />}
-          {offer && <Offer engine={engine} offer={offer} waiting={saved.purchases.some((one) => mayCover(one, offer))} ready={today.paymentsReady} again={isFor(payment, offer)} />}
-          <Days days={useDays(today, saved)} />
-          <Panel>
-            <View style={styles.row}>
-              <Icon name="freeze" size={22} color={frozen} />
-              <Words kind="label" style={styles.grow}>
-                Freezes
-              </Words>
-              <Words kind="label">{today.freezes} of 2</Words>
+        ) : (
+          <>
+            <View style={styles.count} accessible accessibilityLabel={`${today.streak} day streak. ${streakOld ? 'Last known, it may be old.' : ''}`}>
+              <LiveFlame size={44} streak={today.streak} old={streakOld} />
+              <Roll text={String(today.streak)} size={84} />
+              <Words kind="heading">{today.streak === 1 ? 'day' : 'days'}</Words>
             </View>
-            <Words kind="soft">A freeze is used by itself on a day you miss, and your streak stays.</Words>
-            {saved.purchases.some((one) => one.id !== snapshot.buying && !isOver(one)) && <Words kind="soft">One you bought is not here yet. See the shop.</Words>}
-            <Button kind="quiet" title="Shop" onPress={() => router.push('/shop')} />
-          </Panel>
-        </>
-      )}
-    </ScrollView>
+            {streakOld && <Old engine={engine} snapshot={snapshot} today={today} />}
+            {snapshot.saved.notices.map((notice) => (
+              <Panel key={notice.id}>
+                <Words>{notice.text}</Words>
+                <Button kind="quiet" title="OK" onPress={() => engine.dismissNotice(notice.id)} />
+              </Panel>
+            ))}
+            {payment && (
+              <Rise at={1}>
+                <PaymentPanel engine={engine} payment={payment} offer={offer} />
+              </Rise>
+            )}
+            {offer && (
+              <Rise at={1}>
+                <Offer
+                  engine={engine}
+                  offer={offer}
+                  waiting={saved.purchases.some((one) => mayCover(one, offer))}
+                  ready={today.paymentsReady}
+                  again={isFor(payment, offer)}
+                />
+              </Rise>
+            )}
+            <Rise at={2}>
+              <Days days={days} />
+            </Rise>
+            <Rise at={3}>
+              <Panel>
+                <View style={styles.row}>
+                  <Icon name="freeze" size={22} color={colors.frozen} />
+                  <Words kind="label" style={styles.grow}>
+                    Freezes
+                  </Words>
+                  <Words kind="heading">{today.freezes} of 2</Words>
+                </View>
+                <Words kind="soft">A freeze is used by itself on a day you miss, and your streak stays.</Words>
+                {saved.purchases.some((one) => one.id !== snapshot.buying && !isOver(one)) && <Words kind="soft">One you bought is not here yet. See the shop.</Words>}
+                <Button kind="quiet" title="Shop" onPress={() => router.push('/shop')} />
+              </Panel>
+            </Rise>
+          </>
+        )}
+      </ScrollView>
+    </Opening>
   );
 }
-
-const useDays = (today: Today, saved: Snapshot['saved']) => useMemo(() => streakDays(today, saved), [saved, today]);
 
 function Old({ engine, snapshot, today }: { engine: Engine; snapshot: Snapshot; today: Today }) {
   const from = new Date(today.now).toLocaleString(undefined, { day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' });
@@ -109,7 +134,7 @@ function Offer({ engine, offer, waiting, ready, again }: { engine: Engine; offer
   const left = Date.parse(offer.closesAt) - now;
   if (left <= 0) return null;
   return (
-    <Panel strong>
+    <Panel>
       <Words kind="heading">
         Your {offer.lostStreak} day streak broke on {dateText(offer.missedDay)}
       </Words>
@@ -139,7 +164,7 @@ function PaymentPanel({ engine, payment, offer }: { engine: Engine; payment: Pay
   const { busy, problem, pay } = usePay(engine);
   if (payment.state === 'checking' || payment.state === 'processing') {
     return (
-      <Panel strong>
+      <Panel>
         <View style={styles.row} accessibilityLiveRegion="polite">
           <ActivityIndicator color={colors.ink} />
           <Words kind="heading" style={styles.grow}>
@@ -152,7 +177,7 @@ function PaymentPanel({ engine, payment, offer }: { engine: Engine; payment: Pay
   }
   if (payment.state === 'bank') {
     return (
-      <Panel strong>
+      <Panel>
         <Words kind="heading">Your bank has not approved it yet</Words>
         <Words>No money was taken so far.</Words>
         <Button title="Go on with the payment" busy={busy} onPress={pay} />
@@ -176,14 +201,14 @@ function PaymentPanel({ engine, payment, offer }: { engine: Engine; payment: Pay
 
 const LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const LOOK: Record<DayStatus, { icon: 'check' | 'cross' | 'freeze' | 'back' | null; color: string; fill: string; ring: string }> = {
-  done: { icon: 'check', color: colors.deep, fill: colors.green, ring: colors.green },
-  unsent: { icon: 'check', color: colors.green, fill: 'transparent', ring: colors.green },
-  frozen: { icon: 'freeze', color: colors.deep, fill: frozen, ring: frozen },
-  won_back: { icon: 'back', color: colors.deep, fill: colors.rare, ring: colors.rare },
+  done: { icon: 'check', color: colors.onInk, fill: colors.ink, ring: colors.ink },
+  unsent: { icon: 'check', color: colors.ink, fill: 'transparent', ring: colors.ink },
+  frozen: { icon: 'freeze', color: colors.frozen, fill: colors.frozenFill, ring: colors.frozenFill },
+  won_back: { icon: 'back', color: colors.ink, fill: '#FBD9B5', ring: '#FBD9B5' },
   missed: { icon: 'cross', color: colors.red, fill: 'transparent', ring: colors.red },
   today: { icon: null, color: colors.ink, fill: 'transparent', ring: colors.ink },
   late: { icon: null, color: colors.ink, fill: 'transparent', ring: colors.soft },
-  before: { icon: null, color: colors.line, fill: 'transparent', ring: 'transparent' },
+  before: { icon: null, color: '#8A8A8A', fill: 'transparent', ring: 'transparent' },
 };
 const LEGEND: [DayStatus, string][] = [
   ['done', 'Done'],
@@ -208,9 +233,9 @@ function Days({ days }: { days: StreakDay[] }) {
           </Words>
         ))}
       </View>
-      {weeks.map((week) => (
+      {weeks.map((week, w) => (
         <View key={week[0]!.day} style={styles.week}>
-          {Array.from({ length: 7 }, (_, i) => (week[i] ? <Day key={i} one={week[i]} /> : <View key={i} style={styles.cell} />))}
+          {Array.from({ length: 7 }, (_, i) => (week[i] ? <Day key={i} one={week[i]} after={180 + (w * 7 + i) * 18} /> : <View key={i} style={styles.cell} />))}
         </View>
       ))}
       <View style={styles.legend}>
@@ -227,10 +252,16 @@ function Days({ days }: { days: StreakDay[] }) {
   );
 }
 
-function Day({ one }: { one: StreakDay }) {
+function Day({ one, after }: { one: StreakDay; after: number }) {
   return (
     <View style={styles.cell} accessible={one.status !== 'before'} accessibilityLabel={`${dateText(one.day)}, ${statusName[one.status]}`}>
-      <Mark status={one.status} size={30} day={one.day} />
+      {one.status === 'before' ? (
+        <Mark status={one.status} size={30} day={one.day} />
+      ) : (
+        <Pop after={after}>
+          <Mark status={one.status} size={30} day={one.day} />
+        </Pop>
+      )}
     </View>
   );
 }
@@ -252,12 +283,11 @@ function Mark({ status, size, day }: { status: DayStatus; size: number; day?: st
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.mat },
+  screen: { flex: 1, backgroundColor: colors.page },
   content: { paddingHorizontal: space.l, paddingTop: space.s, gap: space.m },
   empty: { minHeight: 300, justifyContent: 'center', gap: space.l },
   centre: { textAlign: 'center' },
-  count: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s, paddingVertical: space.m },
-  number: { fontSize: 52, lineHeight: 60, fontVariant: ['tabular-nums'] },
+  count: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.m, paddingVertical: space.s },
   old: { gap: space.s },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.m },
   grow: { flex: 1 },
