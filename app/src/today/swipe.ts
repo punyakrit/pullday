@@ -33,6 +33,12 @@ export function liftSpeed(reported: number, moved: number, elapsedMs: number): n
   return Math.abs(average) > Math.abs(reported) ? average : reported;
 }
 
+/** Down is no direction. The card gives a little and no more, so it never goes under the piles. */
+export function give(y: number): number {
+  'worklet';
+  return y <= 0 ? y : 36 * (1 - Math.exp(-y / 90));
+}
+
 /** Where the card goes if it is let go now, or null to come back. */
 export function decide(x: number, y: number, vx: number, vy: number, width: number, height: number): Rarity | null {
   'worklet';

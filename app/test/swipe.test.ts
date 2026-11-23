@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { decide, liftSpeed, pull } from '../src/today/swipe';
+import { give, decide, liftSpeed, pull } from '../src/today/swipe';
 
 const W = 360;
 const H = 480;
@@ -69,4 +69,12 @@ describe('speed when the finger lifts', () => {
   test('a tap is not a swipe', () => {
     assert.equal(go(3, 2, liftSpeed(0, 3, 40), liftSpeed(0, 2, 40)), null);
   });
+});
+
+test('down is no direction: the card gives a little, and never reaches the piles', () => {
+  assert.equal(give(-80), -80); // up it follows the finger
+  assert.equal(give(0), 0);
+  assert.ok(give(20) > 5 && give(20) < 20);
+  assert.ok(give(100) > give(50));
+  for (const y of [200, 600, 2_000]) assert.ok(give(y) <= 36);
 });

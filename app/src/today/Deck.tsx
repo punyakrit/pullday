@@ -24,7 +24,7 @@ import { CardImage, describeCard } from '../ui/CardImage';
 import { Icon, Shape } from '../ui/Icons';
 import { Words } from '../ui/Words';
 import { CARD_RATIO, colors, rarityColor, rarityName, space } from '../ui/theme';
-import { decide, liftSpeed, pull } from './swipe';
+import { decide, give, liftSpeed, pull } from './swipe';
 
 type Props = {
   challenge: Challenge;
@@ -260,9 +260,10 @@ const Surface = memo(function Surface({ places, top, size, throwCard, begin }: S
       if (!place || held.value !== top.value) return; // a button threw it meanwhile
       // From where the finger went down, so the card is under it from the first pixel.
       place.x.value = start.value.x + event.absoluteX - touch.value.x;
-      place.y.value = start.value.y + event.absoluteY - touch.value.y;
+      const y = start.value.y + event.absoluteY - touch.value.y;
+      place.y.value = give(y);
       const { width, height } = size.value;
-      const now = decide(place.x.value, place.y.value, 0, 0, width, height) ?? '';
+      const now = decide(place.x.value, y, 0, 0, width, height) ?? '';
       if (now !== armed.value) {
         armed.value = now;
         if (now !== '') scheduleOnRN(haptics.armed);
@@ -287,7 +288,7 @@ const Surface = memo(function Surface({ places, top, size, throwCard, begin }: S
         throwCard(i, going, vx, vy);
       } else {
         place.x.value = withSpring(0, { ...HOME, velocity: event.velocityX });
-        place.y.value = withSpring(0, { ...HOME, velocity: event.velocityY });
+        place.y.value = withSpring(0, { ...HOME, velocity: place.y.value > 0 ? 0 : event.velocityY });
       }
     },
     onFinalize: (event) => {
