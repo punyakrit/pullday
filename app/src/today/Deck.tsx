@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
@@ -13,6 +13,7 @@ import Animated, {
   useDerivedValue,
   useReducedMotion,
   useSharedValue,
+  withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -44,6 +45,21 @@ const DIRECTIONS: { rarity: Rarity; way: 'left' | 'up' | 'right' }[] = [
 ];
 
 type Size = { width: number; height: number };
+type Bumps = Record<Rarity, SharedValue<number>>;
+
+function useBumps(): Bumps {
+  const common = useSharedValue(0);
+  const rare = useSharedValue(0);
+  const holo = useSharedValue(0);
+  return useMemo(() => ({ common, rare, holo }), [common, holo, rare]);
+}
+
+/** The pile that got the card. It is only a pile: nothing waits for it. */
+function bump(pile: SharedValue<number>) {
+  'worklet';
+  pile.value = withSequence(withTiming(1, { duration: 70 }), withSpring(0, { duration: 420, dampingRatio: 0.45 }));
+}
+
 const ACTIONS = DIRECTIONS.map(({ rarity }) => ({ name: rarity, label: rarityName[rarity] }));
 
 export function Deck({ challenge, answers: saved, onBegin, onAnswer }: Props) {
@@ -68,6 +84,7 @@ export function Deck({ challenge, answers: saved, onBegin, onAnswer }: Props) {
   const [area, setArea] = useState<Size>({ width: 0, height: 0 });
   const top = useSharedValue(saved.length); // the card a finger moves. Decided on the UI thread only
   const size = useSharedValue<Size>({ width: 1, height: 1 });
+  const bumps = useBumps();
   const index = answers.length;
 
   // The ones a finger can reach first, the rest straight after, all before the first swipe is done.
@@ -101,6 +118,7 @@ export function Deck({ challenge, answers: saved, onBegin, onAnswer }: Props) {
       const place = places[i];
       if (!place || i !== top.value) return; // already thrown
       top.value = i + 1;
+      bump(bumps[rarity]);
       place.verdict.value = rarities[i] === rarity ? 1 : 2;
       const { width, height } = size.value;
       if (reduced) {
@@ -117,7 +135,7 @@ export function Deck({ challenge, answers: saved, onBegin, onAnswer }: Props) {
       }
       scheduleOnRN(answered, i, rarity);
     },
-    [answered, places, rarities, reduced, size, top, windowHeight],
+    [answered, bumps, places, rarities, reduced, size, top, windowHeight],
   );
 
   const press = useCallback(
@@ -142,7 +160,7 @@ export function Deck({ challenge, answers: saved, onBegin, onAnswer }: Props) {
 
   return (
     <View style={styles.fill}>
-      <Pips cards={cards} answers={answers} />
+      <Pips cards={cards} answers={answers} places={places} top={top} />
       <View style={styles.verdict} accessibilityLiveRegion="polite">
         {last ? (
           <>
@@ -187,7 +205,7 @@ export function Deck({ challenge, answers: saved, onBegin, onAnswer }: Props) {
 
       <View style={styles.piles}>
         {DIRECTIONS.map(({ rarity, way }) => (
-          <Pile key={rarity} rarity={rarity} way={way} places={places} top={top} size={size} onPress={press} disabled={!current} />
+          <Pile key={rarity} rarity={rarity} way={way} places={places} top={top} size={size} bump={bumps[rarity]} onPress={press} disabled={!current} />
         ))}
       </View>
     </View>
@@ -327,12 +345,12 @@ const DeckCard = memo(function DeckCard({ card, i, top, place, size, width, heig
     opacity: place.fade.value * interpolate(depth.value, [2, 3], [1, 0], Extrapolation.CLAMP),
     transform: lie(place, depth.value, size.value.width),
   }));
-  const shade = useAnimatedStyle(() => ({ opacity: Math.min(depth.value * 0.28, 0.5) }));
+  const shade = useAnimatedStyle(() => ({ opacity: Math.min(depth.value * 0.34, 0.6) }));
 
   return (
     <Animated.View style={[styles.card, { width, height, borderRadius: width * 0.05 }, style]}>
       <CardImage card={card} width={width} height={height} priority={i < 3 ? 'high' : 'normal'} fade={false} />
-      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.deep, borderRadius: width * 0.05 }, shade]} />
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.page, borderRadius: width * 0.05 }, shade]} />
     </Animated.View>
   );
 });
@@ -362,10 +380,10 @@ const Overlay = memo(function Overlay({ places, top, size, width, height }: Over
       </Animated.View>
       <Animated.View style={[styles.card, { width, height }, thrown]}>
         <Animated.View style={[styles.mark, { backgroundColor: colors.green }, right]}>
-          <Icon name="check" size={46} color={colors.onLabel} weight={3} />
+          <Icon name="check" size={46} color={colors.onInk} weight={3} />
         </Animated.View>
         <Animated.View style={[styles.mark, { backgroundColor: colors.red }, wrong]}>
-          <Icon name="cross" size={46} color={colors.onLabel} weight={3} />
+          <Icon name="cross" size={46} color={colors.onInk} weight={3} />
         </Animated.View>
       </Animated.View>
     </>
@@ -383,7 +401,7 @@ const Stamp = memo(function Stamp({ rarity, way, places, top, size }: StampProps
   const style = useAnimatedStyle(() => ({
     opacity: interpolate(strength.value, [0.12, 0.6], [0, 1], Extrapolation.CLAMP),
     transform: [{ scale: strength.value >= 1 ? 1.12 : interpolate(strength.value, [0, 1], [0.86, 1], Extrapolation.CLAMP) }],
-    backgroundColor: strength.value >= 1 ? rarityColor[rarity] : colors.deep,
+    backgroundColor: strength.value >= 1 ? rarityColor[rarity] : colors.panel,
   }));
   const ink = useAnimatedStyle(() => ({ opacity: strength.value >= 1 ? 0 : 1 }));
   const armedInk = useAnimatedStyle(() => ({ opacity: strength.value >= 1 ? 1 : 0 }));
@@ -397,8 +415,8 @@ const Stamp = memo(function Stamp({ rarity, way, places, top, size }: StampProps
         </Words>
       </Animated.View>
       <Animated.View style={[styles.row, styles.over, armedInk]}>
-        <Shape rarity={rarity} size={18} color={colors.onLabel} />
-        <Words kind="label" style={{ color: colors.onLabel }} maxFontSizeMultiplier={1}>
+        <Shape rarity={rarity} size={18} color={colors.onInk} />
+        <Words kind="label" style={{ color: colors.onInk }} maxFontSizeMultiplier={1}>
           {rarityName[rarity]}
         </Words>
       </Animated.View>
@@ -412,18 +430,19 @@ type PileProps = {
   places: Place[];
   top: SharedValue<number>;
   size: SharedValue<{ width: number; height: number }>;
+  bump: SharedValue<number>;
   onPress: (rarity: Rarity) => void;
   disabled: boolean;
 };
 
 /** A button for each pile. Also shows which one the card is heading for. */
-const Pile = memo(function Pile({ rarity, way, places, top, size, onPress, disabled }: PileProps) {
+const Pile = memo(function Pile({ rarity, way, places, top, size, bump, onPress, disabled }: PileProps) {
   const style = useAnimatedStyle(() => {
     const place = places[top.value];
     const strength = place ? pull(place.x.value, place.y.value, size.value.width, size.value.height)[way] : 0;
     return {
       borderColor: strength >= 1 ? rarityColor[rarity] : colors.line,
-      transform: [{ scale: interpolate(strength, [0, 1], [1, 1.07], Extrapolation.CLAMP) }],
+      transform: [{ scale: interpolate(strength, [0, 1], [1, 1.05], Extrapolation.CLAMP) + bump.value * 0.07 }],
     };
   });
   return (
@@ -432,7 +451,7 @@ const Pile = memo(function Pile({ rarity, way, places, top, size, onPress, disab
         accessibilityRole="button"
         accessibilityLabel={rarityName[rarity]}
         accessibilityHint={`Puts this card in the ${rarity} pile`}
-        android_ripple={{ color: '#FFFFFF22' }}
+        android_ripple={{ color: '#00000010' }}
         disabled={disabled}
         onPress={() => onPress(rarity)}
         style={styles.pileButton}
@@ -450,7 +469,7 @@ const Pile = memo(function Pile({ rarity, way, places, top, size, onPress, disab
   );
 });
 
-const Pips = memo(function Pips({ cards, answers }: { cards: Card[]; answers: Rarity[] }) {
+const Pips = memo(function Pips({ cards, answers, places, top }: { cards: Card[]; answers: Rarity[]; places: Place[]; top: SharedValue<number> }) {
   return (
     <View
       style={styles.pips}
@@ -459,13 +478,23 @@ const Pips = memo(function Pips({ cards, answers }: { cards: Card[]; answers: Ra
     >
       {cards.map((card, i) => {
         const answer = answers[i];
-        const right = answer === card.rarity;
-        return (
-          <View key={card.id} style={[styles.pip, i === answers.length && styles.pipNow]}>
-            {answer !== undefined && <Icon name={right ? 'check' : 'cross'} size={16} weight={3.4} color={right ? colors.green : colors.red} />}
-          </View>
-        );
+        return <Pip key={card.id} i={i} now={i === answers.length} right={answer === undefined ? null : answer === card.rarity} place={places[i]!} top={top} />;
       })}
+    </View>
+  );
+});
+
+/** Fills the moment the card is let go. */
+const Pip = memo(function Pip({ i, now, right, place, top }: { i: number; now: boolean; right: boolean | null; place: Place; top: SharedValue<number> }) {
+  const full = useDerivedValue(() => withSpring(top.value > i ? 1 : 0, { duration: 380, dampingRatio: 0.5 }));
+  const fill = useAnimatedStyle(() => ({ opacity: Math.min(1, full.value * 3), transform: [{ scale: full.value }] }));
+  const wrong = useAnimatedStyle(() => ({ opacity: place.verdict.value === 2 ? 1 : 0 }));
+  return (
+    <View style={[styles.pip, now && styles.pipNow]}>
+      <Animated.View style={[styles.pipFill, { backgroundColor: right === false ? colors.red : colors.green }, fill]}>
+        <Animated.View style={[StyleSheet.absoluteFill, styles.pipWrong, wrong]} />
+        {right !== null && <Icon name={right ? 'check' : 'cross'} size={15} weight={3.4} color={colors.onInk} />}
+      </Animated.View>
     </View>
   );
 });
@@ -477,7 +506,7 @@ const styles = StyleSheet.create({
   card: { position: 'absolute' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   over: { position: 'absolute' },
-  stamp: { position: 'absolute', borderWidth: 2.5, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, alignItems: 'center', justifyContent: 'center' },
+  stamp: { position: 'absolute', borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 7, alignItems: 'center', justifyContent: 'center' },
   left: { top: 18, right: 14 },
   right: { top: 18, left: 14 },
   up: { bottom: 26, alignSelf: 'center' },
@@ -495,9 +524,11 @@ const styles = StyleSheet.create({
   },
   verdict: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s, paddingHorizontal: space.l },
   pips: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingTop: space.xs, paddingBottom: space.s },
-  pip: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.deep, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.deep },
-  pipNow: { borderColor: colors.ink },
+  pip: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.panel, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line },
+  pipNow: { borderColor: colors.ink, borderWidth: 1.5 },
+  pipFill: { position: 'absolute', width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  pipWrong: { backgroundColor: colors.red, borderRadius: 13 },
   piles: { flexDirection: 'row', gap: space.s, paddingHorizontal: space.l, paddingTop: space.s, paddingBottom: space.m },
-  pile: { flex: 1, borderRadius: 10, borderWidth: 2, backgroundColor: colors.raised, overflow: 'hidden' },
+  pile: { flex: 1, borderRadius: 16, borderWidth: 1, backgroundColor: colors.panel, overflow: 'hidden' },
   pileButton: { minHeight: 64, alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 6 },
 });
