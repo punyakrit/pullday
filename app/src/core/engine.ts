@@ -1,5 +1,6 @@
 import { type Api, Refused, SignedOut, Unreachable } from './api';
 import { ServerClock } from './clock';
+import { dateText } from './prices';
 import { OWNED, SAVED, TODAY, readRow, writeRow } from './rows';
 import {
   CARDS,
@@ -632,6 +633,7 @@ export class Engine {
     }
     const keep = new Set([...Object.keys(this.saved.plays), ...unsent, ...today.unseenReveals.map((one) => one.challengeId)]);
     for (const id of Object.keys(this.saved.seen)) if (!keep.has(id)) delete this.saved.seen[id];
+    this.tellFreezes(today);
     this.save();
     this.deps.onBundle?.(today);
   }
@@ -668,6 +670,21 @@ export class Engine {
   private queue(item: OutboxItem): void {
     const known = this.saved.outbox.some((other) => other.kind === item.kind && other.challengeId === item.challengeId);
     if (!known) this.saved.outbox = [...this.saved.outbox, item];
+  }
+
+  /** A freeze that was used, or did not fit. A phone that is new to the account only tells what is fresh. */
+  private tellFreezes({ freezesUsed, freezeRefunds, recentDays }: Today): void {
+    const first = this.saved.told === null;
+    const told = this.saved.told ?? [];
+    const lastDone = recentDays.filter(({ status }) => status === 'done').at(-1)?.day ?? '';
+    const fresh = freezesUsed.filter((day) => !told.includes(`used:${day}`) && (!first || day > lastDone)).reverse();
+    if (fresh.length > 0) {
+      const days = fresh.map((day) => dateText(day)).join(' and ');
+      this.notice(fresh.length === 1 ? `You missed ${days}. A freeze kept your streak that day.` : `You missed ${days}. A freeze kept your streak each time.`);
+    }
+    if (!first) for (const id of freezeRefunds) this.tell(`refund:${id}`, TOO_MANY);
+    // Only what the server still lists, so it never grows.
+    this.saved.told = [...freezesUsed.map((day) => `used:${day}`), ...freezeRefunds.map((id) => `refund:${id}`)];
   }
 
   /** Once on this phone. */

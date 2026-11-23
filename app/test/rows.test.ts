@@ -160,3 +160,14 @@ test('every kind of row reads back what it wrote', () => {
   back(CLOCK, { offset: -12.5, floor: 0 });
   assert.deepEqual(readRow(storage, 'nothing', SAVED), { value: null, unusable: false });
 });
+
+test('rows from before the shop are still read', () => {
+  const storage = new MemoryStorage();
+  const world = new World('2026-11-23T12:00:00Z');
+  const { purchases: _p, told: _t, ...saved } = emptySaved();
+  const { freezesUsed: _u, freezeRefunds: _r, ...today } = world.today();
+  storage.set('saved', JSON.stringify({ version: 2, value: saved }));
+  storage.set('today', JSON.stringify({ version: 2, value: today }));
+  assert.deepEqual(readRow(storage, 'saved', SAVED), { value: emptySaved(), unusable: false });
+  assert.deepEqual(readRow(storage, 'today', TODAY), { value: world.today(), unusable: false });
+});

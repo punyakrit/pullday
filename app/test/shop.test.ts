@@ -336,6 +336,52 @@ describe('the offline rule', () => {
   });
 });
 
+describe('a freeze that was used is told on the next open', () => {
+  const done = (...days: string[]) => days.map((day) => ({ day: `2026-11-${day}`, status: 'done' as const }));
+  const frozen = (day: string) => ({ day: `2026-11-${day}`, status: 'frozen' as const });
+  async function open(over: Partial<Today>, world = new World(CLEAN)) {
+    world.normal(over);
+    const engine = world.open();
+    await engine.sync();
+    return { world, engine };
+  }
+  const USED = { freezesUsed: ['2026-11-22'], recentDays: [...done('20', '21'), frozen('22')] };
+
+  test('once, also after the app is killed', async () => {
+    const { world, engine } = await open(USED);
+    assert.equal(notices(engine).length, 1);
+    assert.match(notices(engine)[0]!, /^You missed .*22.*\. A freeze kept your streak that day\.$/);
+    engine.dismissNotice(engine.getSnapshot().saved.notices[0]!.id);
+    await engine.sync();
+    const again = (await open(USED, world)).engine;
+    assert.deepEqual(notices(again), []);
+  });
+
+  test('on a phone that knows the account, also when the next day was done before it could be told', async () => {
+    const { world } = await open({ recentDays: done('20', '21') });
+    const { engine } = await open({ freezesUsed: ['2026-11-22'], recentDays: [...done('20', '21'), frozen('22'), ...done('23')] }, world);
+    assert.equal(notices(engine).length, 1);
+  });
+
+  test('two in a row are told together', async () => {
+    const { engine } = await open({ freezesUsed: ['2026-11-22', '2026-11-21'], recentDays: [...done('20'), frozen('21'), frozen('22')] });
+    assert.equal(notices(engine).length, 1);
+    assert.match(notices(engine)[0]!, /21.* and .*22/);
+  });
+
+  test('a new phone does not bring up old ones', async () => {
+    const { engine } = await open({ freezesUsed: ['2026-11-12'], freezeRefunds: ['f1'], recentDays: [frozen('12'), ...done('13')] });
+    assert.deepEqual(notices(engine), []);
+  });
+
+  test('one that came back as a third is told, once', async () => {
+    const { world } = await open({});
+    const { engine } = await open({ freezeRefunds: ['f1'] }, world);
+    await engine.sync();
+    assert.deepEqual(notices(engine), ['You can hold 2 freezes, so a third was not kept. Its $1.99 goes back to you.']);
+  });
+});
+
 describe('the fake store', () => {
   test('one sheet at a time', async () => {
     const { world, engine } = await shop();
