@@ -6,6 +6,7 @@ import {
   OFFLINE_MS,
   type OutboxItem,
   type Open,
+  type Payment,
   type Play,
   type Saved,
   type View,
@@ -17,10 +18,12 @@ import {
   nextChange,
   whatToShow,
 } from './state';
-import type { Challenge, Completed, Rarity, Storage, Today, User } from './types';
+import type { Challenge, Completed, Rarity, Storage, Today, User, WinBack } from './types';
 
 /** Just asked: no need to ask again. */
 const FRESH_MS = 5_000;
+/** How often Stripe has to say "not paid" before we say so. */
+const UNPAID_CHECKS = 3;
 
 /** What the phone says about its own connection. */
 export type Net = { connected: boolean; reachable: boolean; kind: string };
@@ -39,7 +42,17 @@ export type Snapshot = {
   unsaved: boolean;
   /** Streak, freezes and win back are only true once the outbox is empty. */
   streakKnown: boolean;
+  /** What is shown is only the last we knew. */
+  streakOld: boolean;
+  payment: Payment | null;
+  /** Only with nothing unsent, and not while a payment is under way. */
+  offer: WinBack | null;
 };
+
+/** What the payment sheet needs. */
+export type Sheet = { clientSecret: string; publishableKey: string };
+
+type Paid = { id: string; state: 'open' | 'bank' | 'processing' | 'declined' | 'paid' | 'canceled' | 'refunding' | 'refunded'; problem: string | null };
 
 export type OwnedCard = { cardId: string; acquiredAt: string; revealSeenAt: string | null };
 
@@ -72,6 +85,10 @@ export class Engine {
   private connection: Connection = 'unknown';
   private syncing = false;
   private unsaved = false;
+  private paying: Promise<Sheet | null> | null = null;
+  private checking: Promise<void> | null = null;
+  private cancelCheck: (() => void) | null = null;
+  private checks = 0;
   private snapshot: Snapshot;
   private readonly listeners = new Set<() => void>();
   private flushing: Promise<boolean> | null = null;
@@ -113,6 +130,7 @@ export class Engine {
   stop(): void {
     this.stopped = true;
     this.cancelRetry?.();
+    this.cancelCheck?.();
   }
 
   // Playing
@@ -229,9 +247,11 @@ export class Engine {
     const { data } = await this.deps.api.call<Completed>('POST', path, { answers: item.answers });
     const play = this.saved.plays[item.challengeId];
     if (play) play.accepted = { card: data.card, score: data.score };
-    if (this.today) {
-      const { streak, todayDone, freezes, winBack, recentDays } = data;
-      this.today = { ...this.today, streak, todayDone, freezes, winBack, recentDays };
+    // With more days waiting behind it, this reply's streak is not the end of it.
+    const more = this.saved.outbox.some((other) => other !== item && other.kind === 'complete');
+    if (this.today && !more) {
+      const { streak, todayDone, freezes, winBack, recentDays, settledThrough } = data;
+      this.today = { ...this.today, streak, todayDone, freezes, winBack, recentDays, settledThrough };
       writeRow(this.deps.storage, this.keys.today, TODAY, this.today);
     }
     if (data.card && this.owned && !this.owned.some((one) => one.cardId === data.card!.id)) {
@@ -273,6 +293,7 @@ export class Engine {
 
   /** The app came to the front, or the network came back. Several of these arrive together. */
   wake(): void {
+    if (this.saved.payment) void this.checkPayment();
     if (this.unsaved) this.save(); // there may be space again
     else this.publish();
     // Either way: the phone's clock can be moved back.
@@ -293,6 +314,7 @@ export class Engine {
   private async syncNow(): Promise<void> {
     if (this.stopped) return;
     this.triedAt = this.deps.local();
+    if (this.isPending()) void this.checkPayment();
     this.syncing = true;
     this.publish();
     if (!(await this.sendFirst())) return;
@@ -315,11 +337,15 @@ export class Engine {
   waitsFor = (): 'finish' | 'send' | null => waitsFor(this.saved, this.clock.now());
 
   /** A read for another screen. Goes through the same gate as everything else. */
-  async get<T>(path: string, headers?: Record<string, string>) {
+  get<T>(path: string, headers?: Record<string, string>) {
+    return this.ask<T>('GET', path, undefined, headers);
+  }
+
+  private async ask<T>(method: 'GET' | 'POST', path: string, body?: object, headers?: Record<string, string>) {
     const sent = await this.sendFirst();
     if (!sent || !mayContact(this.saved, this.clock.now())) throw new Unreachable('network', 'Waiting for your challenge to be sent');
     try {
-      const reply = await this.deps.api.call<T>('GET', path, undefined, headers);
+      const reply = await this.deps.api.call<T>(method, path, body, headers);
       this.heard();
       this.publish();
       return reply;
@@ -327,6 +353,113 @@ export class Engine {
       if (!(err instanceof Refused)) this.failed(err);
       throw err;
     }
+  }
+
+  // Winning a streak back
+
+  /**
+   * Begin to pay, or go on with it. Saved on the phone before this returns, because the sheet opens next.
+   * Null: there is nothing to pay with, the payment is past that. A second tap waits for the first.
+   */
+  beginPayment(): Promise<Sheet | null> {
+    this.paying ??= this.startPayment().finally(() => {
+      this.paying = null;
+    });
+    return this.paying;
+  }
+
+  private async startPayment(): Promise<Sheet | null> {
+    const missedDay = this.saved.payment?.missedDay ?? this.today?.winBack?.missedDay;
+    const lostStreak = this.saved.payment?.lostStreak ?? this.today?.winBack?.lostStreak ?? 0;
+    if (!missedDay) throw new Refused(409, 'no_win_back', 'There is no streak to win back.');
+    // It counts as contact, so it waits for everything else like any other call.
+    const { data } = await this.ask<Paid & { clientSecret: string | null; publishableKey: string }>('POST', '/win-back', { missedDay });
+    this.saved.payment = { id: data.id, missedDay, lostStreak, state: 'checking', problem: null };
+    this.checks = 0;
+    this.save();
+    if (!data.clientSecret) {
+      this.heardOf(data, true);
+      return null;
+    }
+    if (this.unsaved) {
+      this.saved.payment = null;
+      this.publish();
+      throw new Error('not saved'); // a payment that a kill would lose is not begun
+    }
+    return { clientSecret: data.clientSecret, publishableKey: data.publishableKey };
+  }
+
+  /** The sheet is gone. What it said is not the answer: Stripe is asked. */
+  sheetClosed(canceled: boolean): Promise<void> {
+    this.checks = canceled ? UNPAID_CHECKS : 0; // closed by hand, so nothing can be on its way
+    return this.checkPayment();
+  }
+
+  private isPending = () => ['checking', 'processing', 'bank'].includes(this.saved.payment?.state ?? '');
+
+  /** What became of the payment. A quiet call: it never counts as contact, so it does not wait for the gate. */
+  checkPayment(): Promise<void> {
+    this.checking ??= this.checkNow().finally(() => {
+      this.checking = null;
+    });
+    return this.checking;
+  }
+
+  private async checkNow(): Promise<void> {
+    const { payment } = this.saved;
+    this.cancelCheck?.();
+    this.cancelCheck = null;
+    if (!payment || this.stopped) return;
+    try {
+      const { data } = await this.deps.api.call<Paid>('GET', `/win-back/payments/${payment.id}`);
+      this.heard();
+      if (this.saved.payment?.id === payment.id) this.heardOf(data, false);
+    } catch (err) {
+      if (err instanceof Refused) {
+        // Not there any more: the account started over.
+        if (this.saved.payment?.id === payment.id) this.saved.payment = null;
+        this.save();
+        return;
+      }
+      this.failed(err);
+    }
+    this.planCheck();
+  }
+
+  private planCheck(): void {
+    const state = this.saved.payment?.state;
+    if (this.stopped || (state !== 'checking' && state !== 'processing')) return;
+    const wait = Math.min(1_500 * 2 ** this.checks, 30_000);
+    this.checks++;
+    this.cancelCheck?.();
+    this.cancelCheck = (this.deps.setTimer ?? realTimer)(() => void this.checkPayment(), wait);
+  }
+
+  private heardOf(paid: Paid, justBegun: boolean): void {
+    const payment = this.saved.payment!;
+    const days = `${payment.lostStreak} day streak`;
+    if (paid.state === 'paid') {
+      this.saved.payment = null;
+      this.notice(`Paid. Your ${days} is back.`);
+    } else if (paid.state === 'refunded' || paid.state === 'refunding') {
+      this.saved.payment = null;
+      this.notice(`Your streak did not need it, so your payment ${paid.state === 'refunded' ? 'was' : 'is being'} refunded in full.`);
+    } else if (paid.state === 'open') {
+      // Not paid. Right after a kill it may still be on its way, so it is asked a few times more.
+      const sure = this.checks >= UNPAID_CHECKS;
+      this.saved.payment = { ...payment, state: justBegun || !sure ? 'checking' : 'unpaid', problem: null };
+    } else {
+      this.saved.payment = { ...payment, state: paid.state, problem: paid.problem };
+    }
+    this.save();
+    if (this.saved.payment === null) void this.sync();
+  }
+
+  /** The person has read it. */
+  dismissPayment(): void {
+    if (this.isPending() && this.saved.payment?.state !== 'bank') return; // not while it is not known
+    this.saved.payment = null;
+    this.save();
   }
 
   private applyToday(today: Today, sentAt: number, receivedAt: number): void {
@@ -364,6 +497,7 @@ export class Engine {
     this.today = null;
     this.owned = null;
     this.open = null;
+    this.cancelCheck?.();
     this.unsaved = false;
     for (const key of [...Object.values(this.keys), `user:${this.user.id}:clock`]) this.deps.storage.remove(key);
     this.clock.reset();
@@ -411,6 +545,13 @@ export class Engine {
   }
 
   private build(): Snapshot {
+    const streakKnown =
+      this.today !== null &&
+      !this.saved.outbox.some((item) => item.kind === 'complete') &&
+      this.clock.now() < Date.parse(this.today.endsAt);
+    const { payment } = this.saved;
+    const winBack = this.today?.winBack ?? null;
+    const offered = winBack !== null && streakKnown && this.saved.outbox.length === 0 && mayContact(this.saved, this.clock.now());
     return {
       saved: this.saved,
       today: this.today,
@@ -420,10 +561,10 @@ export class Engine {
       syncing: this.syncing,
       unsent: this.saved.outbox.filter((item) => item.kind === 'complete').length,
       unsaved: this.unsaved,
-      streakKnown:
-        this.today !== null &&
-        !this.saved.outbox.some((item) => item.kind === 'complete') &&
-        this.clock.now() < Date.parse(this.today.endsAt),
+      streakKnown,
+      streakOld: !streakKnown || this.connection === 'offline' || this.connection === 'trouble',
+      payment,
+      offer: offered && !this.isPending() && this.clock.now() < Date.parse(winBack.closesAt) ? winBack : null,
     };
   }
 

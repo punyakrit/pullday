@@ -76,25 +76,38 @@ const isOutboxItem = (value: unknown): boolean =>
 
 const same = (old: unknown) => old;
 
+const isPayment = (value: unknown): boolean =>
+  isObject(value) &&
+  isText(value.id) &&
+  isText(value.missedDay) &&
+  isNumber(value.lostStreak) &&
+  ['checking', 'processing', 'bank', 'declined', 'canceled', 'unpaid'].includes(value.state as string) &&
+  (value.problem === null || isText(value.problem));
+
+const dayBefore = (day: unknown): string => new Date(Date.parse(`${String(day)}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+
 /** What was played and is unsent. The only row that cannot be fetched again. */
 export const SAVED: Kind<Saved> = {
-  upgrades: [same],
+  upgrades: [same, (old) => ({ ...(old as object), payment: null })],
   check: (value): value is Saved =>
     isObject(value) &&
     isObject(value.plays) &&
     Object.values(value.plays).every(isPlay) &&
     isList(value.outbox, isOutboxItem) &&
     isObject(value.seen) &&
-    isList(value.notices, (one) => isObject(one) && isText(one.id) && isText(one.text)),
+    isList(value.notices, (one) => isObject(one) && isText(one.id) && isText(one.text)) &&
+    (value.payment === null || isPayment(value.payment)),
 };
 
 export const TODAY: Kind<Today> = {
-  upgrades: [same],
+  upgrades: [same, (old) => ({ ...(old as object), settledThrough: dayBefore((old as Today).day), paymentsReady: false })],
   check: (value): value is Today =>
     isObject(value) &&
     isText(value.day) &&
     isTime(value.endsAt) &&
     isNumber(value.streak) &&
+    isText(value.settledThrough) &&
+    isList(value.recentDays, (one) => isObject(one) && isText(one.day) && isText(one.status)) &&
     isChallenge(value.challenge) &&
     isChallenge(value.tomorrow) &&
     (value.resume === null || isChallenge(value.resume)) &&

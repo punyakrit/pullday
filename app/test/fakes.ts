@@ -69,6 +69,8 @@ export class World {
       freezes: 0,
       winBack: null,
       recentDays: [],
+      settledThrough: new Date(this.time - 24 * HOUR).toISOString().slice(0, 10),
+      paymentsReady: true,
       resume: null,
       challenge: challenge(day),
       tomorrow: challenge(next),
@@ -114,7 +116,7 @@ export class World {
       if (path === '/collection') return { status: 200, body: { cards: [] } };
       const done = /^\/challenges\/(ch-(.+))\/complete$/.exec(path);
       if (method === 'POST' && done) {
-        const { streak, freezes, winBack, recentDays } = this.today();
+        const { streak, freezes, winBack, recentDays, settledThrough } = this.today();
         return {
           status: 200,
           body: {
@@ -129,6 +131,7 @@ export class World {
             freezes,
             winBack,
             recentDays,
+            settledThrough,
           },
         };
       }

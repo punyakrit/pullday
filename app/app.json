@@ -50,7 +50,15 @@
             "./assets/fonts/BarlowSemiCondensed-Bold.ttf"
           ]
         }
-      ]
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "enableGooglePay": false,
+          "disableSPM": true
+        }
+      ],
+      "./plugins/withoutTapAndPay"
     ],
     "experiments": {
       "typedRoutes": true

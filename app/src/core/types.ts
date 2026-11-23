@@ -32,6 +32,7 @@ export type StreakInfo = {
   freezes: number;
   winBack: WinBack | null;
   recentDays: { day: string; status: 'done' | 'frozen' | 'won_back' }[];
+  settledThrough: string; // a day up to here with no record was missed
 };
 
 export type Today = StreakInfo & {
@@ -42,6 +43,7 @@ export type Today = StreakInfo & {
   resume: Challenge | null;
   challenge: Challenge;
   tomorrow: Challenge;
+  paymentsReady: boolean;
   unseenReveals: { challengeId: string; day: string; acquiredAt: string; card: Card }[];
 };
 

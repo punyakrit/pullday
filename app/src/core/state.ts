@@ -18,6 +18,12 @@ export type Play = {
   accepted: { card: Card | null; score: number } | null; // the server's word, once we have it
 };
 
+/** 'checking' until Stripe has answered, whatever happened on this phone. */
+export type PaymentState = 'checking' | 'processing' | 'bank' | 'declined' | 'canceled' | 'unpaid';
+
+/** Saved before the payment sheet opens, so that a phone that dies in the middle asks afterwards. */
+export type Payment = { id: string; missedDay: string; lostStreak: number; state: PaymentState; problem: string | null };
+
 export type Notice = { id: string; text: string };
 
 export type Saved = {
@@ -25,9 +31,10 @@ export type Saved = {
   outbox: OutboxItem[];
   seen: Record<string, true>; // reveals that were shown to the end
   notices: Notice[];
+  payment: Payment | null;
 };
 
-export const emptySaved = (): Saved => ({ plays: {}, outbox: [], seen: {}, notices: [] });
+export const emptySaved = (): Saved => ({ plays: {}, outbox: [], seen: {}, notices: [], payment: null });
 
 export const isFinished = (play: Play | undefined): boolean => play !== undefined && play.answers.length === CARDS;
 const ends = (challenge: Challenge) => Date.parse(challenge.endsAt);
@@ -65,6 +72,7 @@ export function nextChange(saved: Saved, today: Today | null, now: number): numb
   for (const challenge of [today?.challenge, today?.tomorrow]) {
     if (challenge) times.push(Date.parse(challenge.startsAt), ends(challenge));
   }
+  if (today?.winBack) times.push(Date.parse(today.winBack.closesAt));
   for (const play of Object.values(saved.plays)) if (isHeldOpen(play, now)) times.push(ends(play.challenge) + GRACE_MS + 1);
   const ahead = times.filter((time) => time > now);
   return ahead.length ? Math.min(...ahead) : null;

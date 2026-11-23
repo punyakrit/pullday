@@ -10,8 +10,8 @@ const notices = [
   { id: 'a', text: 'First' },
   { id: 'b', text: 'Second' },
 ];
-const calm = { view: playing, unsaved: false, saved: emptySaved(), connection: 'online', unsent: 0 } as const;
-const bad = { unsaved: true, saved: { ...emptySaved(), notices }, connection: 'offline', unsent: 1 } as const;
+const calm = { view: playing, unsaved: false, saved: emptySaved(), connection: 'online', unsent: 0, payment: null, offer: null } as const;
+const bad = { unsaved: true, saved: { ...emptySaved(), notices }, connection: 'offline', unsent: 1, payment: null, offer: null } as const;
 
 describe('the line above Today', () => {
   test('nothing to say', () => assert.equal(bannerFor(calm), null));
