@@ -17,6 +17,9 @@ const { pool } = await import('../src/db.ts');
 const { migrate } = await import('../src/migrate.ts');
 const { buildApp } = await import('../src/app.ts');
 const { setRealClock } = await import('../src/time.ts');
+const { transaction } = await import('../src/db.ts');
+const { lockUser } = await import('../src/auth.ts');
+const streakModule = await import('../src/streak.ts');
 await migrate();
 
 export { pool, buildApp };
@@ -80,6 +83,27 @@ export class Phone {
   revealSeen = (id: string) => this.call('POST', `/challenges/${id}/reveal-seen`);
   async collection() {
     return (await this.call('GET', '/collection')).body.cards as { cardId: string; revealSeenAt: string | null }[];
+  }
+  /** Buy a freeze, now or at a given moment. There is no shop yet. */
+  async buyFreeze(at: Date | string = getClock()) {
+    await pool.query('insert into freezes (user_id, purchased_at) values ($1, $2)', [this.userId, at]);
+  }
+  /** Win back, as the payment step will call it. */
+  winBack() {
+    return transaction(async (db) => streakModule.winBack(db, await lockUser(db, this.userId)));
+  }
+  async days() {
+    const { recentDays } = await this.today();
+    return recentDays.map((row: { day: string; status: string }) => `${row.day.slice(8)} ${row.status}`) as string[];
+  }
+  /** Play on each of these dates at noon UTC. */
+  async playOn(...dates: string[]) {
+    for (const date of dates) {
+      setClock(`${date}T12:00:00Z`);
+      const done = await this.play();
+      if (done.status !== 200) throw new Error(`play failed: ${JSON.stringify(done.body)}`);
+      await this.revealSeen(done.body.challengeId);
+    }
   }
   /** Open the app and do today's challenge. */
   async play() {
