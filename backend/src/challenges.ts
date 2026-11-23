@@ -3,6 +3,7 @@ import { type CardSummary, type Rarity, catalogue, summary } from './cards.ts';
 import type { Db } from './db.ts';
 import { type Day, type Zone, addDays, currentDay, dayEnd, dayStart, judge } from './days.ts';
 import { ApiError } from './errors.ts';
+import { getStreak, replay, settle } from './streak.ts';
 import { now } from './time.ts';
 
 type Challenge = {
@@ -119,15 +120,28 @@ async function unseenReveals(db: Db, userId: string) {
   );
 }
 
+/** Started before midnight and not finished: the phone may carry on with it. */
+async function resumable(db: Db, user: User, zones: Zone[], today: Day) {
+  if (user.settled_through >= addDays(today, -1)) return null; // settling stops only for this
+  const found = await db.query<Challenge>(
+    `select ${COLUMNS} from challenges where user_id = $1 and day = $2 and completed_at is null`,
+    [user.id, addDays(user.settled_through, 1)],
+  );
+  return found.rows[0] ? describe(found.rows[0], zones) : null;
+}
+
 /** Everything the phone needs to play today and tomorrow with no connection. */
 export async function getToday(db: Db, user: User, deviceId: string) {
   const at = now(user);
   const zones = await getZones(db, user.id);
   const today = currentDay(zones, at);
+  await settle(db, user, zones, at);
   return {
     now: at,
     day: today,
     endsAt: dayEnd(zones, today),
+    ...(await getStreak(db, user, today, at)),
+    resume: await resumable(db, user, zones, today),
     challenge: await describe(await issue(db, user, today, today, deviceId), zones),
     tomorrow: await describe(await issue(db, user, today, addDays(today, 1), deviceId), zones),
     unseenReveals: await unseenReveals(db, user.id),
@@ -154,7 +168,8 @@ export async function start(db: Db, user: User, challengeId: string) {
   return { challengeId: challenge.id, startedAt: challenge.started_at, completedAt: challenge.completed_at };
 }
 
-async function result(challenge: Challenge, repeated: boolean) {
+async function result(db: Db, user: User, zones: Zone[], challenge: Challenge, repeated: boolean) {
+  const at = now(user);
   const cards = await Promise.all(challenge.card_ids.map(summary));
   return {
     challengeId: challenge.id,
@@ -163,6 +178,7 @@ async function result(challenge: Challenge, repeated: boolean) {
     score: cards.filter((card, i) => card.rarity === challenge.answers?.[i]).length,
     card: challenge.reward_card_id ? await summary(challenge.reward_card_id) : null, // null: owns every card
     repeated,
+    ...(await getStreak(db, user, currentDay(zones, at), at)),
   };
 }
 
@@ -173,9 +189,9 @@ async function result(challenge: Challenge, repeated: boolean) {
 export async function complete(db: Db, user: User, deviceId: string, challengeId: string, answers: Rarity[]) {
   const at = now(user);
   const challenge = await findChallenge(db, user.id, challengeId);
-  if (challenge.completed_at) return result(challenge, true);
-
   const zones = await getZones(db, user.id);
+  if (challenge.completed_at) return result(db, user, zones, challenge, true);
+
   const phone = await db.query<{ issued_at: Date | null; last_contact_at: Date | null }>(
     `select b.issued_at, d.last_contact_at from devices d
        left join bundle_issues b on b.device_id = d.device_id and b.challenge_id = $3
@@ -216,7 +232,8 @@ export async function complete(db: Db, user: User, deviceId: string, challengeId
      on conflict (user_id, day) do update set status = 'done'`,
     [user.id, challenge.day],
   );
-  return result({ ...challenge, completed_at: at, answers, reward_card_id: reward }, false);
+  await replay(db, user, zones, challenge.day, at);
+  return result(db, user, zones, { ...challenge, completed_at: at, answers, reward_card_id: reward }, false);
 }
 
 export async function revealSeen(db: Db, user: User, challengeId: string) {
