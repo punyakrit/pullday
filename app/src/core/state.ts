@@ -3,6 +3,7 @@ import type { Card, Challenge, Rarity, Today, WinBack } from './types';
 export const CARDS = 8;
 export const GRACE_MS = 60 * 60_000; // a begun challenge can be finished this long after its day
 export const OFFLINE_MS = 48 * 3_600_000; // the server takes an offline day this long after
+export const WIN_BACK_MS = 48 * 3_600_000; // from the end of the missed day
 export const EDGE_MS = 60_000; // the last minute of a day counts as ended, because calls take time
 
 export type OutboxItem =
@@ -35,6 +36,10 @@ export type Purchase = {
 };
 
 const OVER: PurchaseState[] = ['declined', 'failed', 'canceled', 'unpaid'];
+/** A freeze begun before the missed day ended, and not here yet, would mend it. Nobody should pay for both. */
+export const mayCover = (purchase: Purchase, offer: WinBack): boolean =>
+  !isOver(purchase) && purchase.beganAt !== null && purchase.beganAt < Date.parse(offer.closesAt) - WIN_BACK_MS;
+
 /** No money was taken, and it can be put away. */
 export const isOver = (purchase: Purchase): boolean => OVER.includes(purchase.state);
 

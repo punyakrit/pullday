@@ -17,6 +17,7 @@ export const colors = {
   holo: '#C9B6FF',
 } as const;
 
+export const frozen = '#8BD3FF';
 export const holoColors = ['#8BE9FF', '#C6A8FF', '#FFB0D8', '#FFF0A6'] as const;
 export const rarityColor: Record<Rarity, string> = { common: colors.common, rare: colors.rare, holo: colors.holo };
 export const rarityName: Record<Rarity, string> = { common: 'Common', rare: 'Rare', holo: 'Holo' };

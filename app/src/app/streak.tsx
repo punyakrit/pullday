@@ -1,9 +1,10 @@
-import { type ReactNode, useMemo, useState } from 'react';
+import { router } from 'expo-router';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Engine, Snapshot } from '../core/engine';
 import { dateText, money } from '../core/prices';
-import { type Payment, isFor } from '../core/state';
+import { type Payment, isFor, isOver, mayCover } from '../core/state';
 import { type DayStatus, type StreakDay, statusName, streakDays } from '../core/streakDays';
 import type { Today, WinBack } from '../core/types';
 import { useSession } from '../lib/session';
@@ -12,8 +13,9 @@ import { payForWinBack } from '../lib/winBack';
 import { countdown } from '../today/Done';
 import { Button } from '../ui/Button';
 import { Flame, Icon } from '../ui/Icons';
+import { Panel } from '../ui/Panel';
 import { Words } from '../ui/Words';
-import { colors, space } from '../ui/theme';
+import { colors, frozen, space } from '../ui/theme';
 
 export default function StreakScreen() {
   const session = useSession();
@@ -54,17 +56,19 @@ function Streak({ engine }: { engine: Engine }) {
             </Panel>
           ))}
           {payment && <PaymentPanel engine={engine} payment={payment} offer={offer} />}
-          {offer && <Offer engine={engine} offer={offer} ready={today.paymentsReady} again={isFor(payment, offer)} />}
+          {offer && <Offer engine={engine} offer={offer} waiting={saved.purchases.some((one) => mayCover(one, offer))} ready={today.paymentsReady} again={isFor(payment, offer)} />}
           <Days days={useDays(today, saved)} />
           <Panel>
             <View style={styles.row}>
-              <Icon name="freeze" size={22} color={FROZEN} />
+              <Icon name="freeze" size={22} color={frozen} />
               <Words kind="label" style={styles.grow}>
                 Freezes
               </Words>
               <Words kind="label">{today.freezes} of 2</Words>
             </View>
             <Words kind="soft">A freeze is used by itself on a day you miss, and your streak stays.</Words>
+            {saved.purchases.some((one) => one.id !== snapshot.buying && !isOver(one)) && <Words kind="soft">One you bought is not here yet. See the shop.</Words>}
+            <Button kind="quiet" title="Shop" onPress={() => router.push('/shop')} />
           </Panel>
         </>
       )}
@@ -87,10 +91,6 @@ function Old({ engine, snapshot, today }: { engine: Engine; snapshot: Snapshot; 
   );
 }
 
-function Panel({ children, strong = false }: { children: ReactNode; strong?: boolean }) {
-  return <View style={[styles.panel, strong && styles.strong]}>{children}</View>;
-}
-
 function usePay(engine: Engine) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -103,7 +103,7 @@ function usePay(engine: Engine) {
   return { busy, problem, pay: () => void pay() };
 }
 
-function Offer({ engine, offer, ready, again }: { engine: Engine; offer: WinBack; ready: boolean; again: boolean }) {
+function Offer({ engine, offer, waiting, ready, again }: { engine: Engine; offer: WinBack; waiting: boolean; ready: boolean; again: boolean }) {
   const now = useServerNow(engine, 1_000);
   const { busy, problem, pay } = usePay(engine);
   const left = Date.parse(offer.closesAt) - now;
@@ -113,6 +113,7 @@ function Offer({ engine, offer, ready, again }: { engine: Engine; offer: WinBack
       <Words kind="heading">
         Your {offer.lostStreak} day streak broke on {dateText(offer.missedDay)}
       </Words>
+      {waiting && <Words>A freeze you began to buy before that is still on its way. If it arrives, it covers that day and you need not pay here.</Words>}
       {ready ? (
         <>
           <Words>Win it back and go on from {offer.lostStreak}.</Words>
@@ -173,12 +174,11 @@ function PaymentPanel({ engine, payment, offer }: { engine: Engine; payment: Pay
   );
 }
 
-const FROZEN = '#8BD3FF';
 const LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const LOOK: Record<DayStatus, { icon: 'check' | 'cross' | 'freeze' | 'back' | null; color: string; fill: string; ring: string }> = {
   done: { icon: 'check', color: colors.deep, fill: colors.green, ring: colors.green },
   unsent: { icon: 'check', color: colors.green, fill: 'transparent', ring: colors.green },
-  frozen: { icon: 'freeze', color: colors.deep, fill: FROZEN, ring: FROZEN },
+  frozen: { icon: 'freeze', color: colors.deep, fill: frozen, ring: frozen },
   won_back: { icon: 'back', color: colors.deep, fill: colors.rare, ring: colors.rare },
   missed: { icon: 'cross', color: colors.red, fill: 'transparent', ring: colors.red },
   today: { icon: null, color: colors.ink, fill: 'transparent', ring: colors.ink },
@@ -259,8 +259,6 @@ const styles = StyleSheet.create({
   count: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s, paddingVertical: space.m },
   number: { fontSize: 52, lineHeight: 60, fontVariant: ['tabular-nums'] },
   old: { gap: space.s },
-  panel: { borderRadius: 12, backgroundColor: colors.deep, padding: space.l, gap: space.s },
-  strong: { backgroundColor: colors.raised, borderWidth: 1, borderColor: colors.line },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.m },
   grow: { flex: 1 },
   tabular: { fontVariant: ['tabular-nums'] },

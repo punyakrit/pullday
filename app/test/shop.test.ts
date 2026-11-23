@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import type { Engine } from '../src/core/engine';
+import { mayCover } from '../src/core/state';
 import type { Today } from '../src/core/types';
 import { World, playAll, settle } from './fakes';
 
@@ -189,6 +190,14 @@ describe('pending', () => {
     assert.deepEqual(notices(engine), ['You can hold 2 freezes, so a third was not kept. Its $1.99 goes back to you.']); // once
     assert.deepEqual(world.store.transactions('u1'), []);
   });
+});
+
+test('while one is pending, the offer to win back says that it may cover that day', () => {
+  const offer = { missedDay: '2026-11-23', lostStreak: 3, closesAt: '2026-11-26T00:00:00Z', priceCents: 499 };
+  const one = { id: 'a', beganAt: Date.parse('2026-11-23T23:58:00Z'), state: 'pending' as const };
+  assert.equal(mayCover(one, offer), true);
+  assert.equal(mayCover({ ...one, beganAt: Date.parse('2026-11-24T00:00:00Z') }, offer), false);
+  assert.equal(mayCover({ ...one, state: 'declined' }, offer), false);
 });
 
 describe('killed while buying', () => {
