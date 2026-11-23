@@ -4,6 +4,7 @@ import { type Rarity, cardDetails, packedCatalogue } from './cards.ts';
 import * as challenges from './challenges.ts';
 import { type Db, pool, transaction } from './db.ts';
 import { ApiError } from './errors.ts';
+import { type ImageOptions, type Width, imageStore } from './images.ts';
 import { enableDevOffset, now } from './time.ts';
 import { changeTimezone } from './timezone.ts';
 
@@ -29,6 +30,7 @@ const object = (properties: Record<string, unknown>, required = Object.keys(prop
 });
 const nothing = { type: ['object', 'null'], additionalProperties: false };
 const idParam = object({ id: { type: 'string', pattern: UUID } });
+const cardParam = object({ id: { type: 'string', pattern: '^c_[0-9]{4}$' } });
 const login = {
   email: { type: 'string', maxLength: 254, pattern: '^\\s*[^\\s@\\u0000-\\u001f]+@[^\\s@\\u0000-\\u001f]+\\.[^\\s@\\u0000-\\u001f]+\\s*$' },
   password: { type: 'string', minLength: 8, maxLength: 200 },
@@ -40,8 +42,9 @@ function asUser<T>(request: FastifyRequest, work: (db: Db, user: User) => Promis
   return transaction(async (db) => work(db, await lockUser(db, request.caller.userId)));
 }
 
-export function buildApp(options: { devTools: boolean; logger?: boolean }): FastifyInstance {
+export function buildApp(options: { devTools: boolean; logger?: boolean; images?: Partial<ImageOptions> }): FastifyInstance {
   enableDevOffset(options.devTools);
+  const getImage = imageStore(options.images);
   const app = Fastify({
     logger: options.logger ?? false,
     bodyLimit: 16 * 1024,
@@ -148,8 +151,30 @@ export function buildApp(options: { devTools: boolean; logger?: boolean }): Fast
   });
   app.get<{ Params: { id: string } }>(
     '/cards/:id',
-    { schema: { params: object({ id: { type: 'string', pattern: '^c_[0-9]{4}$' } }) } },
+    { schema: { params: cardParam } },
     async (request) => cardDetails(request.params.id, request.caller.userId),
+  );
+  // Open, so the phone's image cache can fetch it as a plain URL.
+  app.get<{ Params: { id: string }; Querystring: { w?: string; grey?: string } }>(
+    '/images/:id',
+    {
+      config: { open: true },
+      schema: {
+        params: cardParam,
+        querystring: object({ w: { enum: ['200', '400', '1080'] }, grey: { enum: ['0', '1'] } }, []),
+      },
+    },
+    async (request, reply) => {
+      const { w = '400', grey } = request.query;
+      try {
+        const image = await getImage(request.params.id, Number(w) as Width, grey === '1');
+        return reply.type('image/webp').header('cache-control', 'public, max-age=31536000, immutable').send(image);
+      } catch (err) {
+        const missing = err instanceof ApiError && err.status === 404;
+        reply.header('cache-control', missing ? 'public, max-age=3600' : 'no-store');
+        throw err;
+      }
+    },
   );
 
   return app;
