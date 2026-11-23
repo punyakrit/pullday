@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 // A separate database, so tests never touch the one you play with.
+const envFile = fileURLToPath(new URL('../.env', import.meta.url));
+if (existsSync(envFile)) process.loadEnvFile(envFile);
 const base = process.env.DATABASE_URL ?? 'postgres://pullday:pullday@127.0.0.1:54329/pullday';
 const testUrl = new URL(base);
 testUrl.pathname = '/pullday_test';
