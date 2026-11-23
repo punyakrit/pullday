@@ -96,7 +96,7 @@ export async function resetAccount(email: string, timezone?: string): Promise<vo
     let userId: string;
     if (existing) {
       userId = existing;
-      for (const table of ['binder_slots', 'collection', 'challenges', 'freezes', 'day_records', 'streak_breaks', 'user_timezones']) {
+      for (const table of ['binder_slots', 'collection', 'challenges', 'freezes', 'day_records', 'streak_breaks', 'win_back_payments', 'user_timezones']) {
         await db.query(`delete from ${table} where user_id = $1`, [userId]);
       }
       await db.query(

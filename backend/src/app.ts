@@ -6,6 +6,8 @@ import { type Db, pool, transaction } from './db.ts';
 import { isTimezone } from './days.ts';
 import { grantCards, moveTime, requireTestAccount } from './dev.ts';
 import { ApiError } from './errors.ts';
+import { makePayments } from './payments.ts';
+import type { StripeApi } from './stripe.ts';
 import { type ImageOptions, type Width, imageStore } from './images.ts';
 import { resetAccount } from './seed.ts';
 import { enableDevOffset, now } from './time.ts';
@@ -17,6 +19,9 @@ declare module 'fastify' {
     open?: boolean;
     /** Does not count as this phone having been online. Outbox calls (start, complete, reveal seen), log out, dev tools. */
     quiet?: boolean;
+  }
+  interface FastifyInstance {
+    payments: ReturnType<typeof makePayments>;
   }
   interface FastifyRequest {
     caller: Caller;
@@ -46,7 +51,13 @@ function asUser<T>(request: FastifyRequest, work: (db: Db, user: User) => Promis
   return transaction(async (db) => work(db, await lockUser(db, request.caller.userId)));
 }
 
-export function buildApp(options: { devTools: boolean; logger?: boolean; images?: Partial<ImageOptions> }): FastifyInstance {
+export function buildApp(options: {
+  devTools: boolean;
+  logger?: boolean;
+  images?: Partial<ImageOptions>;
+  stripe?: StripeApi | null;
+}): FastifyInstance {
+  const payments = makePayments(options.stripe ?? null);
   enableDevOffset(options.devTools);
   const images = imageStore(options.images);
   const app = Fastify({
@@ -113,7 +124,10 @@ export function buildApp(options: { devTools: boolean; logger?: boolean; images?
   // The daily loop
 
   app.get('/today', async (request) =>
-    asUser(request, (db, user) => challenges.getToday(db, user, request.caller.deviceId)),
+    asUser(request, async (db, user) => ({
+      ...(await challenges.getToday(db, user, request.caller.deviceId)),
+      paymentsReady: payments.isReady(),
+    })),
   );
   app.post<{ Params: { id: string } }>(
     '/challenges/:id/start',
@@ -141,6 +155,27 @@ export function buildApp(options: { devTools: boolean; logger?: boolean; images?
     { config: { quiet: true }, schema: { params: idParam, body: nothing } },
     async (request) => asUser(request, (db, user) => challenges.revealSeen(db, user, request.params.id)),
   );
+
+  // Winning a streak back
+
+  app.post<{ Body: { missedDay: string } }>(
+    '/win-back',
+    { schema: { body: object({ missedDay: { type: 'string', pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' } }) } },
+    async (request) => payments.begin(request.caller.userId, request.body.missedDay),
+  );
+  // Quiet, so asking what became of a payment can never cost an offline day. It says nothing about days.
+  app.get<{ Params: { id: string } }>(
+    '/win-back/payments/:id',
+    { config: { quiet: true }, schema: { params: idParam } },
+    async (request) => payments.check(request.caller.userId, request.params.id),
+  );
+  app.register(async (hook) => {
+    hook.addContentTypeParser('application/json', { parseAs: 'buffer', bodyLimit: 256 * 1024 }, (_request, body, done) => done(null, body)); // the signature is over the raw bytes
+    hook.post<{ Body: Buffer }>('/stripe/webhook', { config: { open: true }, bodyLimit: 256 * 1024 }, async (request) => {
+      await payments.webhook(request.body, request.headers['stripe-signature'] as string | undefined);
+      return { received: true };
+    });
+  });
 
   // Cards
 
@@ -212,6 +247,26 @@ export function buildApp(options: { devTools: boolean; logger?: boolean; images?
           return grantCards(db, user, request.body ?? {});
         }),
     );
+    app.post<{ Body: { paymentId: string; card: 'visa' | 'declined'; afterMs?: number } }>(
+      '/dev/pay',
+      {
+        config,
+        schema: {
+          body: object(
+            { paymentId: { type: 'string', pattern: UUID }, card: { enum: ['visa', 'declined'] }, afterMs: { type: 'integer', minimum: 0, maximum: 60_000 } },
+            ['paymentId', 'card'],
+          ),
+        },
+      },
+      async (request) => {
+        requireTestAccount(request.caller);
+        const { paymentId, card, afterMs = 0 } = request.body;
+        const pay = () => payments.confirm(request.caller.userId, paymentId, card);
+        if (afterMs === 0) await pay();
+        else setTimeout(() => void pay().catch(() => {}), afterMs); // the app is killed in the meantime
+        return { paying: paymentId };
+      },
+    );
     app.post<{ Body: { timezone?: string } | null }>(
       '/dev/reset',
       { config, schema: { body: optional({ timezone: { type: 'string', maxLength: 64 } }) } },
@@ -225,5 +280,6 @@ export function buildApp(options: { devTools: boolean; logger?: boolean; images?
     );
   }
 
+  app.decorate('payments', payments);
   return app;
 }

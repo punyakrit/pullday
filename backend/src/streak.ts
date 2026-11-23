@@ -1,8 +1,6 @@
 import { type User, getZones } from './auth.ts';
 import type { Db } from './db.ts';
 import { type Day, type Zone, GRACE_MS, SHORT_DAY_MS, WIN_BACK_MS, addDays, currentDay, dayEnd, dayLength } from './days.ts';
-import { ApiError } from './errors.ts';
-import { now } from './time.ts';
 
 export type Status = 'done' | 'frozen' | 'won_back';
 export const MAX_FREEZES = 2;
@@ -121,25 +119,43 @@ async function openBreak(db: Db, userId: string, at: Date) {
 }
 
 /**
- * Fill every missed day since the break. Days done after it are already there, so they join up.
- * Payment is checked by the caller. There is no endpoint yet.
+ * The break that money for this missed day would mend, open or not any more. Usually that day's own. If a
+ * late day fixed that one, it is the next break of the same run: what was bought is the same streak.
  */
-export async function winBack(db: Db, user: User): Promise<void> {
-  const at = now(user);
-  const zones = await getZones(db, user.id);
-  await settle(db, user, zones, at);
-  const broken = await openBreak(db, user.id, at);
-  if (!broken) throw new ApiError(409, 'no_win_back', 'There is no streak to win back.');
-  for (let day = broken.missed_day; day <= user.settled_through; day = addDays(day, 1)) {
-    await db.query(
+export async function findOffer(db: Db, user: User, at: Date, missedDay: Day): Promise<{ missedDay: Day; closesAt: Date } | null> {
+  await settle(db, user, await getZones(db, user.id), at);
+  const found = await db.query<{ missed_day: Day; broke_at: Date }>(
+    `select missed_day, broke_at from streak_breaks
+      where user_id = $1 and won_back_at is null and missed_day >= $2 order by missed_day limit 1`,
+    [user.id, missedDay],
+  );
+  const broken = found.rows[0];
+  if (!broken) return null;
+  const records = await getRecords(db, user.id);
+  for (let day = missedDay; day < broken.missed_day; day = addDays(day, 1)) if (!records.has(day)) return null;
+  return { missedDay: broken.missed_day, closesAt: new Date(broken.broke_at.getTime() + WIN_BACK_MS) };
+}
+
+/**
+ * Fill every missed day since the break, once it is paid for. Days done after it are already there, so they
+ * join up. Returns the days it filled in, or null if there was nothing to mend.
+ */
+export async function coverBreak(db: Db, user: User, missedDay: Day, at: Date): Promise<Day[] | null> {
+  const broken = await findOffer(db, user, at, missedDay);
+  if (!broken) return null;
+  const filled: Day[] = [];
+  for (let day = broken.missedDay; day <= user.settled_through; day = addDays(day, 1)) {
+    const added = await db.query(
       `insert into day_records (user_id, day, status) values ($1, $2, 'won_back') on conflict do nothing`,
       [user.id, day],
     );
+    if (added.rowCount) filled.push(day);
   }
   await db.query(
     'update streak_breaks set won_back_at = $3 where user_id = $1 and missed_day >= $2 and won_back_at is null',
-    [user.id, broken.missed_day, at],
+    [user.id, broken.missedDay, at],
   );
+  return filled;
 }
 
 /** What the phone shows about the streak. */
@@ -162,5 +178,6 @@ export async function getStreak(db: Db, user: User, today: Day, at: Date) {
       priceCents: WIN_BACK_PRICE_CENTS,
     },
     recentDays: recent.map(([day, status]) => ({ day, status })),
+    settledThrough: user.settled_through, // a day up to here with no record was missed
   };
 }

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { FakeStripe } from './fakeStripe.ts';
 
 // A separate database, so tests never touch the one you play with.
 const envFile = fileURLToPath(new URL('../.env', import.meta.url));
@@ -35,6 +36,7 @@ const streakModule = await import('../src/streak.ts');
 const { TEST_EMAILS } = await import('../src/auth.ts');
 const { resetAccount, seedAll } = await import('../src/seed.ts');
 const { pickCards } = await import('../src/challenges.ts');
+const { StripeUnreachable, stripeKeys } = await import('../src/stripe.ts');
 
 // Tests empty the users table. If a test file imports anything from src/ that opens the
 // database, it can be loaded before the address above is set. Never go on if that happened.
@@ -44,8 +46,12 @@ if (connected.rows[0]?.name !== 'pullday_test') {
 }
 await migrate();
 
-export { TEST_EMAILS, buildApp, pickCards, pool, resetAccount, seedAll };
-export const app = buildApp({ devTools: true });
+export { TEST_EMAILS, buildApp, pickCards, stripeKeys, pool, resetAccount, seedAll };
+export const stripe = new FakeStripe();
+stripe.noAnswer = () => new StripeUnreachable();
+export const app = buildApp({ devTools: true, stripe });
+/** The same server with no Stripe keys. */
+export const keyless = buildApp({ devTools: true });
 
 let clock = Date.parse('2026-11-23T12:00:00Z');
 setRealClock(() => clock);
@@ -60,9 +66,11 @@ export const ANSWERS = Array(8).fill('common') as string[];
 export async function clean(iso = '2026-11-23T12:00:00Z') {
   setClock(iso);
   await pool.query('truncate users cascade');
+  stripe.reset();
 }
 export async function close() {
   await app.close();
+  await keyless.close();
   await pool.end();
   await admin.end(); // last, so the next run never meets this one's connections
 }
@@ -111,9 +119,13 @@ export class Phone {
   async buyFreeze(at: Date | string = getClock()) {
     await pool.query('insert into freezes (user_id, purchased_at) values ($1, $2)', [this.userId, at]);
   }
-  /** Win back, as the payment step will call it. */
-  winBack() {
-    return transaction(async (db) => streakModule.winBack(db, await lockUser(db, this.userId)));
+  /** Win back with the money left out of it. payments.test.ts has the money. */
+  async winBack() {
+    const { winBack } = await this.today();
+    const filled =
+      winBack &&
+      (await transaction(async (db) => streakModule.coverBreak(db, await lockUser(db, this.userId), winBack.missedDay, getClock())));
+    if (!filled) throw new Error('there is no streak to win back');
   }
   async days() {
     const { recentDays } = await this.today();
