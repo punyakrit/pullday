@@ -87,6 +87,15 @@ function DevMenu({ engine, user }: { engine: Engine; user: User }) {
       return `${granted.length} card${granted.length === 1 ? '' : 's'} added.`;
     },
   });
+  /** Begins a real test payment, then Stripe's own test card does the rest, without the sheet. */
+  const pay = (title: string, then: (paymentId: string) => Promise<string>) => ({
+    title,
+    work: async () => {
+      await engine.beginPayment();
+      const id = engine.getSnapshot().payment?.id;
+      return id ? then(id) : 'There is nothing to pay for.';
+    },
+  });
   const dayEnd = () => (snapshot.today ? Date.parse(snapshot.today.endsAt) : now);
 
   const groups = [
@@ -98,6 +107,30 @@ function DevMenu({ engine, user }: { engine: Engine; user: User }) {
         move('1 hour', () => 60),
         move('1 day', () => 24 * 60),
         move('2 days', () => 48 * 60),
+      ],
+    },
+    {
+      name: 'Win back, with a payment',
+      actions: [
+        pay('Paid, connection lost', async (paymentId) => {
+          api.pretendOffline = true; // from here the phone hears nothing
+          setOffline(true);
+          await engine.dev('/dev/pay', { paymentId, card: 'visa' });
+          await engine.sheetClosed(false);
+          return 'Paid, and the phone did not hear it. It checks until the connection is back: turn the switch off.';
+        }),
+        pay('Killed while paying', async (paymentId) => {
+          await engine.dev('/dev/pay', { paymentId, card: 'visa', afterMs: 3_000 });
+          setTimeout(() => {
+            throw new Error('Killed on purpose from the dev menu');
+          }, 800);
+          return 'The app dies now. Open it again: the payment goes through in the meantime.';
+        }),
+        pay('Declined', async (paymentId) => {
+          await engine.dev('/dev/pay', { paymentId, card: 'declined' });
+          await engine.sheetClosed(false);
+          return 'The card was declined.';
+        }),
       ],
     },
     { name: 'Grant cards', actions: [grant('1 card', 1), grant('25 cards', 25), grant('Every card', 2000)] },
