@@ -8,6 +8,7 @@ import { dayOf } from '../../core/prices';
 import type { Card } from '../../core/types';
 import { cardOnPhone } from '../../lib/catalogue';
 import { useSession } from '../../lib/session';
+import { gridFor } from '../../lib/grid';
 import { useDetails } from '../../lib/useDetails';
 import { useEngine } from '../../lib/useEngine';
 import { Button } from '../../ui/Button';
@@ -68,7 +69,7 @@ function Art({ card, owned }: { card: Card; owned: boolean }) {
   const width = Math.floor(Math.min(window.width * 0.64, (window.height * 0.55) / CARD_RATIO, 320));
   return (
     <View style={styles.art} accessible accessibilityRole="image" accessibilityLabel={describeCard(card)}>
-      <CardImage card={card} width={width} height={Math.floor(width * CARD_RATIO)} grey={!owned} priority="high" />
+      <CardImage card={card} width={width} height={Math.floor(width * CARD_RATIO)} grey={!owned} under={gridFor(window.width).size} priority="high" />
     </View>
   );
 }

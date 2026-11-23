@@ -48,6 +48,7 @@ type Props = {
   height: number;
   grey?: boolean;
   size?: ImageWidth;
+  under?: ImageWidth;
   priority?: 'low' | 'normal' | 'high';
   fade?: boolean;
 };
@@ -57,9 +58,9 @@ type Props = {
  * say so if it cannot be loaded. The whole picture is shown: 45 are not slab shaped, nearly all of them
  * stand-in photos in the data.
  */
-export const CardImage = memo(function CardImage({ card, width, height, grey = false, size = widthFor(width), priority = 'normal', fade = true }: Props) {
-  // The large one can take the server 20 seconds to make. The middle one is under it until then.
-  const base = imageUrl(card.id, size === 1080 ? 400 : size, grey);
+export const CardImage = memo(function CardImage({ card, width, height, grey = false, size = widthFor(width), under = size === 1080 ? 400 : size, priority = 'normal', fade = true }: Props) {
+  // What is already here goes under. And the large one can take the server 20 seconds to make.
+  const base = imageUrl(card.id, under, grey);
   const { state } = usePicture(card.id, base);
   if (state === 'none') return <CardText card={card} width={width} height={height} why="none" grey={grey} />;
   const layer = { cardId: card.id, radius: width * 0.05, priority, fade };
@@ -76,7 +77,7 @@ export const CardImage = memo(function CardImage({ card, width, height, grey = f
         )}
       </View>
       <Layer url={base} {...layer} />
-      {size === 1080 && <Layer url={imageUrl(card.id, 1080, grey)} {...layer} />}
+      {size !== under && <Layer url={imageUrl(card.id, size, grey)} {...layer} />}
     </View>
   );
 });

@@ -6,7 +6,8 @@ import { ownedNow } from '../../core/collection';
 import type { Engine } from '../../core/engine';
 import type { Card } from '../../core/types';
 import { useCatalogue } from '../../lib/catalogue';
-import { gridSize } from '../../lib/images';
+import { GAP, gridFor } from '../../lib/grid';
+import type { ImageWidth } from '../../lib/images';
 import { openCard } from '../../lib/openCard';
 import { useSession } from '../../lib/session';
 import { useEngine } from '../../lib/useEngine';
@@ -15,9 +16,6 @@ import { CardImage, describeCard } from '../../ui/CardImage';
 import { Words } from '../../ui/Words';
 import { CARD_RATIO, colors, rarityName, space } from '../../ui/theme';
 
-const GAP = 10;
-/** A tablet or a wide window gets more columns, not bigger cards. */
-const columnsFor = (width: number) => Math.max(3, Math.floor(width / 150));
 const count = new Intl.NumberFormat('en-US');
 const keyOf = (card: Card) => card.id;
 
@@ -31,8 +29,7 @@ function Collection({ engine }: { engine: Engine }) {
   const snapshot = useEngine(engine);
   const catalogue = useCatalogue(engine, snapshot.connection);
   const { width } = useWindowDimensions();
-  const columns = columnsFor(width);
-  const cell = Math.floor((width - space.l * 2 - GAP * (columns - 1)) / columns);
+  const { columns, cell, size } = gridFor(width);
   const [filter, setFilter] = useState<'all' | 'yours'>('all');
   const [pulling, setPulling] = useState(false);
   const list = useRef<FlashListRef<Card>>(null);
@@ -48,7 +45,7 @@ function Collection({ engine }: { engine: Engine }) {
     return [...ids].flatMap((id) => catalogue.byId.get(id) ?? []);
   }, [catalogue, filter, ids]);
 
-  const renderItem = useCallback(({ item }: { item: Card }) => <Cell card={item} owned={ids.has(item.id)} width={cell} />, [cell, ids]);
+  const renderItem = useCallback(({ item }: { item: Card }) => <Cell card={item} owned={ids.has(item.id)} width={cell} size={size} />, [cell, ids, size]);
   const refresh = useCallback(async () => {
     setPulling(true);
     await engine.sync();
@@ -139,7 +136,7 @@ function Choice({ title, chosen, onPress }: { title: string; chosen: boolean; on
   );
 }
 
-const Cell = memo(function Cell({ card, owned, width }: { card: Card; owned: boolean; width: number }) {
+const Cell = memo(function Cell({ card, owned, width, size }: { card: Card; owned: boolean; width: number; size: ImageWidth }) {
   const height = Math.floor(width * CARD_RATIO);
   return (
     <Pressable
@@ -148,7 +145,7 @@ const Cell = memo(function Cell({ card, owned, width }: { card: Card; owned: boo
       accessibilityRole="button"
       accessibilityLabel={`${describeCard(card)}. ${rarityName[card.rarity]}. ${owned ? 'Yours' : 'Not yours yet'}`}
     >
-      <CardImage card={card} width={width} height={height} grey={!owned} size={gridSize(width)} />
+      <CardImage card={card} width={width} height={height} grey={!owned} size={size} />
       {/* Grey is not enough to tell them apart: a slab is mostly grey and white already. */}
       {!owned && <View pointerEvents="none" style={[styles.asleep, { width, height, borderRadius: width * 0.05 }]} />}
     </Pressable>
