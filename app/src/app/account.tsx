@@ -3,9 +3,11 @@ import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Engine } from '../core/engine';
+import type { Outcome } from '../core/store';
 import type { User } from '../core/types';
 import { API_URL } from '../lib/config';
 import { api, explain, isTestAccount, logOut, useSession } from '../lib/session';
+import { store } from '../lib/store';
 import { useEngine, useServerNow } from '../lib/useEngine';
 import { Button } from '../ui/Button';
 import { Words } from '../ui/Words';
@@ -102,6 +104,21 @@ function DevMenu({ engine, user }: { engine: Engine; user: User }) {
       }
     },
   });
+  /** The whole purchase, with the store told how to answer, so without its sheet. */
+  const buy = (title: string, outcome: Outcome, said: string) => ({
+    title,
+    work: async () => {
+      const answer = await engine.buyFreeze(outcome);
+      return answer === 'refunded' ? 'One too many: the money goes back.' : said;
+    },
+  });
+  const decide = (title: string, approved: boolean) => ({
+    title,
+    work: async () => {
+      const count = store.decide(user.id, approved);
+      return count === 0 ? 'Nothing is pending.' : `${count} ${approved ? 'approved' : 'declined'}.`;
+    },
+  });
   const dayEnd = () => (snapshot.today ? Date.parse(snapshot.today.endsAt) : now);
 
   const groups = [
@@ -137,6 +154,34 @@ function DevMenu({ engine, user }: { engine: Engine; user: User }) {
           await engine.sheetClosed(false);
           return 'The card was declined.';
         }),
+      ],
+    },
+    {
+      name: 'Buy a freeze',
+      actions: [
+        buy('Goes through', 'purchased', 'Bought.'),
+        buy('Pending', 'pending', 'It waits for approval.'),
+        decide('Approve pending', true),
+        decide('Decline pending', false),
+        buy('Fails', 'failed', 'It failed. The shop says so.'),
+        buy('Cancelled', 'canceled', 'It was cancelled. The shop says so.'),
+        {
+          title: 'Killed while buying',
+          work: async () => {
+            const run = engine.buyFreeze('purchased');
+            // Once the store is at it, which is after the server has heard that it began.
+            const working = () => engine.getSnapshot().saved.purchases.some((one) => one.state === 'processing');
+            const stop = engine.subscribe(() => {
+              if (!working()) return;
+              stop();
+              setTimeout(() => {
+                throw new Error('Killed on purpose from the dev menu');
+              }, 500);
+            });
+            await run.finally(stop);
+            return 'The app dies now. Open it again: the store has charged in the meantime.';
+          },
+        },
       ],
     },
     { name: 'Grant cards', actions: [grant('1 card', 1), grant('25 cards', 25), grant('Every card', 2000)] },
