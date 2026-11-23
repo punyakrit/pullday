@@ -30,6 +30,8 @@ export type StreakInfo = {
   streak: number;
   todayDone: boolean;
   freezes: number;
+  freezesUsed: string[]; // days, newest first
+  freezeRefunds: string[]; // ids of freezes that were one too many
   winBack: WinBack | null;
   recentDays: { day: string; status: 'done' | 'frozen' | 'won_back' }[];
   settledThrough: string; // a day up to here with no record was missed

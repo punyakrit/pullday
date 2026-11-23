@@ -84,11 +84,17 @@ const isPayment = (value: unknown): boolean =>
   ['checking', 'processing', 'bank', 'declined', 'canceled', 'unpaid'].includes(value.state as string) &&
   (value.problem === null || isText(value.problem));
 
+const isPurchase = (value: unknown): boolean =>
+  isObject(value) &&
+  isText(value.id) &&
+  (value.beganAt === null || isNumber(value.beganAt)) &&
+  ['buying', 'processing', 'pending', 'paid', 'declined', 'failed', 'canceled', 'unpaid'].includes(value.state as string);
+
 const dayBefore = (day: unknown): string => new Date(Date.parse(`${String(day)}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
 
 /** What was played and is unsent. The only row that cannot be fetched again. */
 export const SAVED: Kind<Saved> = {
-  upgrades: [same, (old) => ({ ...(old as object), payment: null })],
+  upgrades: [same, (old) => ({ ...(old as object), payment: null }), (old) => ({ ...(old as object), purchases: [], told: null })],
   check: (value): value is Saved =>
     isObject(value) &&
     isObject(value.plays) &&
@@ -96,16 +102,20 @@ export const SAVED: Kind<Saved> = {
     isList(value.outbox, isOutboxItem) &&
     isObject(value.seen) &&
     isList(value.notices, (one) => isObject(one) && isText(one.id) && isText(one.text)) &&
-    (value.payment === null || isPayment(value.payment)),
+    (value.payment === null || isPayment(value.payment)) &&
+    isList(value.purchases, isPurchase) &&
+    (value.told === null || isList(value.told, isText)),
 };
 
 export const TODAY: Kind<Today> = {
-  upgrades: [same, (old) => ({ ...(old as object), settledThrough: dayBefore((old as Today).day), paymentsReady: false })],
+  upgrades: [same, (old) => ({ ...(old as object), settledThrough: dayBefore((old as Today).day), paymentsReady: false }), (old) => ({ ...(old as object), freezesUsed: [], freezeRefunds: [] })],
   check: (value): value is Today =>
     isObject(value) &&
     isText(value.day) &&
     isTime(value.endsAt) &&
     isNumber(value.streak) &&
+    isList(value.freezesUsed, isText) &&
+    isList(value.freezeRefunds, isText) &&
     isText(value.settledThrough) &&
     isList(value.recentDays, (one) => isObject(one) && isText(one.day) && isText(one.status)) &&
     isChallenge(value.challenge) &&

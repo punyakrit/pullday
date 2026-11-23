@@ -11,6 +11,7 @@ import { API_URL, TEST_ACCOUNTS } from './config';
 import { prefetchBundle } from './images';
 import { pictures } from './pictures';
 import { storage } from './storage';
+import { store } from './store';
 
 export type Session =
   | { status: 'loading' }
@@ -55,6 +56,8 @@ function enter(user: User, token: string): void {
     api,
     storage,
     user,
+    store,
+    newId: () => Crypto.randomUUID(),
     local: Date.now,
     onSignedOut: () => void leave('Your session ended. Log in again to carry on. Nothing on this phone was lost.'),
     onBundle: prefetchBundle,

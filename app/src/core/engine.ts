@@ -8,16 +8,20 @@ import {
   type Open,
   type Payment,
   type Play,
+  type Purchase,
+  type PurchaseState,
   type Saved,
   type View,
   emptySaved,
   findReveal,
   isFinished,
+  isOver,
   mayContact,
   waitsFor,
   nextChange,
   whatToShow,
 } from './state';
+import type { FakeStore, Outcome, Transaction } from './store';
 import type { Challenge, Completed, Rarity, Storage, Today, User, WinBack } from './types';
 
 /** Just asked: no need to ask again. */
@@ -27,6 +31,8 @@ const UNPAID_CHECKS = 3;
 
 /** What the phone says about its own connection. */
 export type Net = { connected: boolean; reachable: boolean; kind: string };
+
+const TOO_MANY = 'You can hold 2 freezes, so a third was not kept. Its $1.99 goes back to you.';
 
 export type Connection = 'unknown' | 'online' | 'offline' | 'trouble';
 
@@ -46,6 +52,8 @@ export type Snapshot = {
   streakOld: boolean;
   /** While the sheet is open: what was said before it opened. */
   payment: Payment | null;
+  /** The freeze that is being bought right now. The button says so, and nothing else needs to. */
+  buying: string | null;
   /** Only with nothing unsent, and not while a payment is under way. */
   offer: WinBack | null;
 };
@@ -55,12 +63,17 @@ export type Sheet = { clientSecret: string; publishableKey: string };
 
 type Paid = { id: string; state: 'open' | 'bank' | 'processing' | 'declined' | 'paid' | 'canceled' | 'refunding' | 'refunded'; problem: string | null };
 
+/** How buying a freeze ended, as far as it is known. 'paid': the server could not be told yet. */
+export type Bought = 'granted' | 'refunded' | 'paid' | Exclude<Outcome, 'purchased'>;
+
 export type OwnedCard = { cardId: string; acquiredAt: string; revealSeenAt: string | null };
 
 type Deps = {
   api: Api;
   storage: Storage;
   user: User;
+  store: FakeStore;
+  newId: () => string;
   local: () => number;
   onSignedOut: () => void;
   /** The server was heard again after it could not be. */
@@ -91,6 +104,11 @@ export class Engine {
   private checking: Promise<void> | null = null;
   private cancelCheck: (() => void) | null = null;
   private checks = 0;
+  private buying: { id: string; run: Promise<Bought>; confirmed: 'granted' | 'refunded' | null } | null = null;
+  private confirming: Promise<void> | null = null;
+  private confirmMs = 0;
+  private cancelConfirm: (() => void) | null = null;
+  private readonly leaveStore: () => void;
   private snapshot: Snapshot;
   private readonly listeners = new Set<() => void>();
   private flushing: Promise<boolean> | null = null;
@@ -115,6 +133,7 @@ export class Engine {
     this.owned = readRow(deps.storage, this.keys.owned, OWNED).value;
     this.saved = this.restore();
     this.snapshot = this.build();
+    this.leaveStore = deps.store.subscribe(() => this.reconcile());
   }
 
   // For React
@@ -133,6 +152,9 @@ export class Engine {
     this.stopped = true;
     this.cancelRetry?.();
     this.cancelCheck?.();
+    this.cancelConfirm?.();
+    this.leaveStore();
+    if (this.deps.store.getSheet()?.account === this.user.id) this.deps.store.cancel();
   }
 
   // Playing
@@ -252,8 +274,8 @@ export class Engine {
     // With more days waiting behind it, this reply's streak is not the end of it.
     const more = this.saved.outbox.some((other) => other !== item && other.kind === 'complete');
     if (this.today && !more) {
-      const { streak, todayDone, freezes, winBack, recentDays, settledThrough } = data;
-      this.today = { ...this.today, streak, todayDone, freezes, winBack, recentDays, settledThrough };
+      const { streak, todayDone, freezes, freezesUsed, freezeRefunds, winBack, recentDays, settledThrough } = data;
+      this.today = { ...this.today, streak, todayDone, freezes, freezesUsed, freezeRefunds, winBack, recentDays, settledThrough };
       writeRow(this.deps.storage, this.keys.today, TODAY, this.today);
     }
     if (data.card && this.owned && !this.owned.some((one) => one.cardId === data.card!.id)) {
@@ -296,6 +318,7 @@ export class Engine {
   /** The app came to the front, or the network came back. Several of these arrive together. */
   wake(): void {
     if (this.saved.payment) void this.checkPayment();
+    this.reconcile();
     if (this.unsaved) this.save(); // there may be space again
     else this.publish();
     // Either way: the phone's clock can be moved back.
@@ -317,6 +340,7 @@ export class Engine {
     if (this.stopped) return;
     this.triedAt = this.deps.local();
     if (this.isPending()) void this.checkPayment();
+    this.reconcile();
     this.syncing = true;
     this.publish();
     if (!(await this.sendFirst())) return;
@@ -475,6 +499,122 @@ export class Engine {
     this.save();
   }
 
+  // Buying a freeze
+
+  /** A second tap gets the first one's answer. Throws if it could not begin: then nothing was asked of the store. */
+  buyFreeze(outcome?: Outcome): Promise<Bought> {
+    if (this.buying) return this.buying.run;
+    const id = this.deps.newId();
+    const run = this.buy(id, outcome).finally(() => {
+      this.buying = null;
+      this.publish();
+    });
+    this.buying = { id, run, confirmed: null };
+    return run;
+  }
+
+  private async buy(id: string, outcome?: Outcome): Promise<Bought> {
+    // On disk before anyone is asked, and again before the sheet opens. A phone that dies knows what to look for.
+    this.saved.purchases = [...this.saved.purchases.filter((one) => !isOver(one)), { id, beganAt: null, state: 'buying' }];
+    this.save();
+    try {
+      if (this.unsaved) throw new Error('not saved');
+      // The server says whether there is room, and when it began. It counts as contact, so it waits for the outbox.
+      const { data } = await this.ask<{ beganAt: string }>('POST', '/freezes/purchases', { id });
+      this.setPurchase(id, 'buying', Date.parse(data.beganAt));
+      if (this.unsaved) throw new Error('not saved');
+    } catch (err) {
+      this.dropPurchase(id);
+      if (err instanceof Refused) void this.sync(); // what we knew about the freezes was old
+      throw err;
+    }
+    const ended = await this.deps.store.purchase(id, this.user.id, outcome);
+    if (ended === 'failed' || ended === 'canceled') {
+      this.setPurchase(id, ended);
+      return ended;
+    }
+    this.reconcile();
+    if (ended === 'pending') return 'pending';
+    await this.confirmPaid();
+    return this.buying?.confirmed ?? 'paid';
+  }
+
+  /** Make what we have agree with what the store knows: on launch, and whenever the store has news. */
+  private reconcile(): void {
+    if (this.stopped) return;
+    const rows = this.deps.store.transactions(this.user.id);
+    const said: Record<Transaction['state'], PurchaseState> = { processing: 'processing', pending: 'pending', purchased: 'paid', declined: 'declined' };
+    let { purchases } = this.saved;
+    for (const row of rows) {
+      const known = purchases.find((one) => one.id === row.token);
+      if (!known) purchases = [...purchases, { id: row.token, beganAt: null, state: said[row.state] }];
+      else if (known.state !== said[row.state]) purchases = purchases.map((one) => (one === known ? { ...known, state: said[row.state] } : one));
+    }
+    // Not with the store: the app died with the sheet open, or the store gave up. No money was taken.
+    purchases = purchases.flatMap((one): Purchase[] => {
+      if (isOver(one) || one.id === this.buying?.id || rows.some((row) => row.token === one.id)) return [one];
+      return one.beganAt === null ? [] : [{ ...one, state: 'unpaid' }];
+    });
+    if (purchases.length !== this.saved.purchases.length || purchases.some((one, i) => one !== this.saved.purchases[i])) {
+      this.saved.purchases = purchases;
+      this.save();
+    }
+    if (this.unsaved) return;
+    for (const row of rows) if (row.state === 'declined') this.deps.store.finish(row.id);
+    if (rows.some((row) => row.state === 'purchased')) void this.confirmPaid();
+  }
+
+  /** Tell the server what the store has taken money for. Quiet calls: they never count as contact. */
+  private confirmPaid(): Promise<void> {
+    this.confirming ??= this.confirmAll().finally(() => {
+      this.confirming = null;
+    });
+    return this.confirming;
+  }
+
+  private async confirmAll(): Promise<void> {
+    this.cancelConfirm?.();
+    const tried = new Set<string>();
+    const next = () => this.deps.store.transactions(this.user.id).find((row) => row.state === 'purchased' && !tried.has(row.id));
+    let done = false;
+    for (let row = next(); row && !this.stopped; row = next()) {
+      tried.add(row.id);
+      try {
+        const { data } = await this.deps.api.call<{ freezeId: string; state: 'granted' | 'refunded' }>('POST', `/freezes/purchases/${row.token}/confirm`, { transactionId: row.id });
+        this.heard();
+        this.confirmMs = 0;
+        done = true;
+        if (data.state === 'refunded') this.tell(`refund:${data.freezeId}`, TOO_MANY);
+        else if (this.buying?.id !== row.token) this.notice('Your streak freeze is here.'); // else the shop says it
+        if (this.buying?.id === row.token) this.buying.confirmed = data.state;
+        this.dropPurchase(row.token);
+        if (!this.unsaved) this.deps.store.finish(row.id); // only now: until then the store hands it over again
+      } catch (err) {
+        if (err instanceof Refused) continue; // asked again next time
+        this.failed(err);
+        this.confirmMs = Math.min(Math.max(3_000, this.confirmMs * 2), 60_000);
+        this.cancelConfirm = (this.deps.setTimer ?? realTimer)(() => void this.confirmPaid(), this.confirmMs);
+        break;
+      }
+    }
+    if (done) void this.sync();
+  }
+
+  /** The person has read it. */
+  dismissPurchase(id: string): void {
+    if (this.saved.purchases.some((one) => one.id === id && isOver(one))) this.dropPurchase(id);
+  }
+
+  private setPurchase(id: string, state: PurchaseState, beganAt?: number): void {
+    this.saved.purchases = this.saved.purchases.map((one) => (one.id === id ? { ...one, state, beganAt: beganAt ?? one.beganAt } : one));
+    this.save();
+  }
+
+  private dropPurchase(id: string): void {
+    this.saved.purchases = this.saved.purchases.filter((one) => one.id !== id);
+    this.save();
+  }
+
   private applyToday(today: Today, sentAt: number, receivedAt: number): void {
     this.clock.sync(today.now, sentAt, receivedAt);
     this.today = today;
@@ -513,6 +653,7 @@ export class Engine {
     this.sheet = null;
     this.cancelCheck?.();
     this.unsaved = false;
+    this.deps.store.forget(this.user.id);
     for (const key of [...Object.values(this.keys), `user:${this.user.id}:clock`]) this.deps.storage.remove(key);
     this.clock.reset();
     this.publish();
@@ -527,6 +668,14 @@ export class Engine {
   private queue(item: OutboxItem): void {
     const known = this.saved.outbox.some((other) => other.kind === item.kind && other.challengeId === item.challengeId);
     if (!known) this.saved.outbox = [...this.saved.outbox, item];
+  }
+
+  /** Once on this phone. */
+  private tell(key: string, text: string): void {
+    const told = this.saved.told ?? [];
+    if (told.includes(key)) return;
+    this.saved.told = [...told, key];
+    this.notice(text);
   }
 
   private notice(text: string): void {
@@ -578,6 +727,7 @@ export class Engine {
       streakKnown,
       streakOld: !streakKnown || this.connection === 'offline' || this.connection === 'trouble',
       payment,
+      buying: this.buying?.id ?? null,
       offer: offered && !this.isPending(payment) && this.clock.now() < Date.parse(winBack.closesAt) ? winBack : null,
     };
   }

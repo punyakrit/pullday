@@ -24,6 +24,20 @@ export type PaymentState = 'checking' | 'processing' | 'bank' | 'declined' | 'ca
 /** Saved before the payment sheet opens, so that a phone that dies in the middle asks afterwards. */
 export type Payment = { id: string; missedDay: string; lostStreak: number; state: PaymentState; problem: string | null };
 
+/** 'buying' while the store's sheet is open. 'paid': the store has the money, our server has not confirmed it yet. */
+export type PurchaseState = 'buying' | 'processing' | 'pending' | 'paid' | 'declined' | 'failed' | 'canceled' | 'unpaid';
+
+/** A freeze being bought. The id is ours, and is saved before anything starts. */
+export type Purchase = {
+  id: string;
+  beganAt: number | null; // the server's word. Null: it has not heard of it, so no sheet was opened either
+  state: PurchaseState;
+};
+
+const OVER: PurchaseState[] = ['declined', 'failed', 'canceled', 'unpaid'];
+/** No money was taken, and it can be put away. */
+export const isOver = (purchase: Purchase): boolean => OVER.includes(purchase.state);
+
 /** It is about the break that is on offer, and not an earlier one. */
 export const isFor = (payment: Payment | null, offer: WinBack | null): boolean => payment !== null && payment.missedDay === offer?.missedDay;
 
@@ -35,9 +49,11 @@ export type Saved = {
   seen: Record<string, true>; // reveals that were shown to the end
   notices: Notice[];
   payment: Payment | null;
+  purchases: Purchase[];
+  told: string[] | null; // freezes used or given back that were told about. Null: nothing is known on this phone yet
 };
 
-export const emptySaved = (): Saved => ({ plays: {}, outbox: [], seen: {}, notices: [], payment: null });
+export const emptySaved = (): Saved => ({ plays: {}, outbox: [], seen: {}, notices: [], payment: null, purchases: [], told: null });
 
 export const isFinished = (play: Play | undefined): boolean => play !== undefined && play.answers.length === CARDS;
 const ends = (challenge: Challenge) => Date.parse(challenge.endsAt);

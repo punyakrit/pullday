@@ -1,5 +1,6 @@
 import { Api } from '../src/core/api';
 import { Engine } from '../src/core/engine';
+import { FakeStore } from '../src/core/store';
 import type { Card, Challenge, Rarity, Storage, Today, User } from '../src/core/types';
 
 export const HOUR = 3_600_000;
@@ -67,6 +68,8 @@ export class World {
       streak: 0,
       todayDone: false,
       freezes: 0,
+      freezesUsed: [],
+      freezeRefunds: [],
       winBack: null,
       recentDays: [],
       settledThrough: new Date(this.time - 24 * HOUR).toISOString().slice(0, 10),
@@ -90,15 +93,29 @@ export class World {
     return new Response(text, { status: reply.status });
   };
 
+  private ids = 0;
+  store!: FakeStore;
+  storeTimers: (() => void)[] = [];
+  /** What the store was in the middle of. */
+  storeGoesOn() {
+    const due = this.storeTimers;
+    this.storeTimers = [];
+    for (const work of due) work();
+  }
+
   api = new Api({ baseUrl: 'http://server/', fetch: this.fetch as typeof fetch, now: () => this.time, timeoutMs: 200 });
 
   /** Open the app. Call it again for what a killed app sees. */
   open(user: User = USER): Engine {
     this.api.startSession('token');
+    this.storeTimers = [];
+    this.store = new FakeStore({ storage: this.storage, newId: () => `t${++this.ids}`, setTimer: (work) => void this.storeTimers.push(work) });
     return new Engine({
       api: this.api,
       storage: this.storage,
       user,
+      store: this.store,
+      newId: () => `b${++this.ids}`,
       local: () => this.time,
       onSignedOut: () => void this.signedOut++,
       onOnline: () => void this.backOnline++,
@@ -116,7 +133,7 @@ export class World {
       if (path === '/collection') return { status: 200, body: { cards: [] } };
       const done = /^\/challenges\/(ch-(.+))\/complete$/.exec(path);
       if (method === 'POST' && done) {
-        const { streak, freezes, winBack, recentDays, settledThrough } = this.today();
+        const { streak, freezes, freezesUsed, freezeRefunds, winBack, recentDays, settledThrough } = this.today();
         return {
           status: 200,
           body: {
@@ -129,6 +146,8 @@ export class World {
             streak: streak + 1,
             todayDone: true,
             freezes,
+            freezesUsed,
+            freezeRefunds,
             winBack,
             recentDays,
             settledThrough,
