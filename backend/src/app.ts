@@ -57,6 +57,8 @@ export function buildApp(options: {
   logger?: boolean;
   images?: Partial<ImageOptions>;
   stripe?: StripeApi | null;
+  /** Make the reward's large picture when its challenge is handed out, so the reveal never waits for it. */
+  prepareRewards?: boolean;
 }): FastifyInstance {
   const payments = makePayments(options.stripe ?? null);
   enableDevOffset(options.devTools);
@@ -124,12 +126,13 @@ export function buildApp(options: {
 
   // The daily loop
 
-  app.get('/today', async (request) =>
-    asUser(request, async (db, user) => ({
-      ...(await challenges.getToday(db, user, request.caller.deviceId)),
-      paymentsReady: payments.isReady(),
-    })),
-  );
+  app.get('/today', async (request) => {
+    const today = await asUser(request, async (db, user) => challenges.getToday(db, user, request.caller.deviceId));
+    for (const challenge of options.prepareRewards ? [today.challenge, today.tomorrow, today.resume] : []) {
+      if (challenge?.reward && !challenge.completedAt) void images.prepare(challenge.reward.id); // nobody waits for it
+    }
+    return { ...today, paymentsReady: payments.isReady() };
+  });
   app.post<{ Params: { id: string } }>(
     '/challenges/:id/start',
     { config: { quiet: true }, schema: { params: idParam, body: nothing } }, // queued offline, so it can arrive late

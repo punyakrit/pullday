@@ -148,6 +148,11 @@ export function imageStore(overrides: Partial<ImageOptions> = {}) {
     return true;
   }
 
+  /** The large one, before anyone asks for it. If it comes to nothing, asking for it says why. */
+  async function prepare(id: string): Promise<void> {
+    if (!(await exists(file(id, { width: 1080, grey: false })))) await get(id, 1080, false).catch(() => {});
+  }
+
   async function get(id: string, width: Width, grey: boolean): Promise<Buffer> {
     const cached = await readFile(file(id, { width, grey })).catch(() => null);
     if (cached) return cached;
@@ -167,7 +172,7 @@ export function imageStore(overrides: Partial<ImageOptions> = {}) {
     return image;
   }
 
-  return { get, warm };
+  return { get, warm, prepare };
 }
 
 function unavailable(error: OriginError): ApiError {

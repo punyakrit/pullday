@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import sharp from 'sharp';
-import { buildApp, close } from './helpers.ts';
+import { Phone, buildApp, close } from './helpers.ts';
 
 const { imageStore } = await import('../src/images.ts');
 
@@ -110,6 +110,28 @@ test('a sideways photo is turned the right way up', async () => {
 
 test('redirects are followed', async () => {
   assert.equal((await get('c_0012?w=200')).statusCode, 200);
+});
+
+test('the large picture of the reward is made when its challenge is handed out', async () => {
+  const phone = await Phone.signUp();
+  const asked = new Set<string>();
+  const dir = `${cacheDir}/rewards`;
+  const server = buildApp({
+    devTools: false,
+    prepareRewards: true,
+    images: { ...images, cacheDir: dir, urlFor: async (id: string) => (asked.add(id), `${address}/c_0001`) },
+  });
+  const today = async () => (await server.inject({ method: 'GET', url: '/today', headers: { authorization: `Bearer ${phone.token}` } })).json();
+  const { challenge, tomorrow } = await today();
+  for (let i = 0; i < 100 && (await readdir(dir).catch(() => [])).filter((name) => name.includes('-1080')).length < 2; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual([...asked].sort(), [challenge.reward.id, tomorrow.reward.id].sort());
+  const made = await readdir(dir);
+  for (const { reward } of [challenge, tomorrow]) assert.ok(made.includes(`${reward.id}-1080.webp`), made.join());
+  asked.clear();
+  await today();
+  await new Promise((r) => setTimeout(r, 100));
+  assert.deepEqual([...asked], []); // once
+  await server.close();
 });
 
 test('ten requests at once make one download', async () => {
