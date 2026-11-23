@@ -1,6 +1,6 @@
 # Decisions
 
-Status: steps 1, 2, 4 and 5 of 8 in `docs/PLAN.md`: the backend, the daily loop, the collection with card details, and the streak with win back. **Nothing has been tested on a real phone yet.** Only on an Android emulator and an iOS simulator, with release builds. `brief.md` asks for a real phone, so this is open.
+Status: steps 1, 2, 4, 5 and 6 of 8 in `docs/PLAN.md`: the backend, the daily loop, the collection with card details, win back, and the shop. **Nothing has been tested on a real phone yet.** Only on an Android emulator and an iOS simulator, with release builds, and **the shop (step 6) only on the Android emulator**. `brief.md` asks for a real phone, so this is open.
 
 ## What was built first, and why
 
@@ -38,13 +38,17 @@ Six of the nine bad reviews are about days, money or lost progress. Those are wr
 
 **Begun inside the 48 hours counts whenever it ends.** An unpaid one is closed an hour after. What cannot be honoured is refunded: also when a late offline day fixed the streak after it was paid. The check never counts as contact. Beginning does, so it waits for the outbox.
 
+**A freeze counts from when the server recorded that the purchase began**, not from when the money was confirmed. Approval can come hours later, and "bought a freeze, got charged, still lost my streak" is one of the reviews. So the server notes the moment before the store opens, and a late confirmation settles the days since then again. A freeze begun at 11:58pm and approved in the morning saves that day.
+
+**One grant for each store transaction, two freezes at most.** The app saves the purchase, the server checks there is room, and only then the store's sheet opens. A purchase is finished with the store only after the server has confirmed it. At 2 it is refused before any charge. One that completes at 2 anyway is recorded as a refund and the person is told. Beginning waits for the outbox. Confirming never counts as contact.
+
 ## Where instructions and brief.md pulled apart
 
-Binder screens wait, but `collector@` must have 5 pages, so the table and seed exist. A returned freeze that would make 3 is marked `refund_due`, and nothing pays it yet.
+Binder screens wait, but `collector@` must have 5 pages, so the table and seed exist. A freeze that would make 3 is marked `refund_due`.
 
 ## Cut or not built yet
 
-Shop, binder (the planned cut). No search. No password reset, email check, rate limit or session expiry.
+Binder (the planned cut). No search. No password reset, email check, rate limit or session expiry.
 
 ## Known limits and what is still broken
 
@@ -56,4 +60,6 @@ Shop, binder (the planned cut). No search. No password reset, email check, rate 
 - A 1080 picture is made when first asked for, which can take 20 seconds. The reveal waits 5, then uses the 400.
 - After a trip shorter than 7 days you cannot move your zone straight back.
 - Money: no webhook from the real Stripe was ever received, only the fake's. A refund that fails is tried every minute, and nobody is told. If a freeze comes back after a win back was paid, the person keeps both. Resetting a test account in the middle of a payment leaves it open at Stripe.
+- Shop: the store is a fake on the phone, so the server takes the phone's word that money was paid, and a refund is only a row. A changed app could begin every day and pay only after a miss. A real store's receipt, with its date, would close both. If a streak is won back while a freeze is pending, the person gets both: nothing is lost, and the offer says so first. A notice that a freeze was used stays if that day later turns out to be done.
+- Small, seen in step 6: the store's sheet slides in but only fades out. With several notices the Buy button is pushed below the fold.
 - Small, seen in step 5: closing the sheet takes about 6 seconds to say "Not paid". After a decline and then a cancel it still says the decline. A "Paid" notice from before a reset by script stays until dismissed. The 3D Secure page shows the name of the Stripe account. The sheet's error red is dim on our dark green. Killing from the dev menu is a real crash.

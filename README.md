@@ -2,8 +2,8 @@
 
 A card collecting app built around a daily habit. This is a test app for a work trial. It is not a real product and is not in any store.
 
-- `backend/` Node + TypeScript API on Postgres. Done for the daily loop. Payments and binder are not built yet.
-- `app/` React Native + TypeScript, Expo SDK 58. The daily loop: log in, challenge, reveal, dev menu. The collection with every card, and card details. Measurements are in `docs/MEASUREMENTS.md`.
+- `backend/` Node + TypeScript API on Postgres. The daily loop, win back with Stripe, and freezes. The binder is not built.
+- `app/` React Native + TypeScript, Expo SDK 58. The daily loop, the collection and card details, the streak with win back, and the shop. Plus a dev menu. Measurements are in `docs/MEASUREMENTS.md`.
 - `docs/PLAN.md` build order. `DECISIONS.md` what and why. `AI.md` how AI was used.
 
 ## Run the backend
@@ -63,7 +63,11 @@ npm run typecheck
 npm test
 ```
 
-These test the app's outbox, offline rules, payments, clock and swipe decisions without a phone. No test goes near the real Stripe.
+These test the app's outbox, offline rules, payments, the fake store, clock and swipe decisions without a phone. No test goes near the real Stripe.
+
+### The fake store
+
+Streak freezes are bought in a fake store inside the app (`app/src/core/store.ts`). Streak screen, Shop. Its sheet says it is a test. The dev menu can make a purchase go through, wait, be approved or declined, fail, be cancelled, or kill the app in the middle.
 
 ## Check the backend
 
@@ -114,6 +118,8 @@ Send `Authorization: Bearer <token>` except where marked open. Errors are `{ "er
 | `POST /win-back` | `missedDay`. Begins or goes on with the one payment for that break. 409 `no_win_back` or `payments_not_set_up` |
 | `GET /win-back/payments/:id` | Asks Stripe what became of it. Never counts as contact |
 | `POST /stripe/webhook` (open) | Only a hint: Stripe is asked before anything happens |
+| `POST /freezes/purchases` | `id`, a UUID the app made and saved first. Records that a purchase begins. 409 `freezes_full` at 2 |
+| `POST /freezes/purchases/:id/confirm` | `transactionId`. The store has the money. One grant each, safe to repeat: `granted` or `refunded`. Never counts as contact |
 | `GET /collection` | Owned cards |
 | `GET /catalogue` | All 1,993 cards, light, gzip and ETag |
 | `GET /cards/:id` | Details, price history, story |

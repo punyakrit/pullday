@@ -8,6 +8,8 @@ Step 0 and 1, all of it: the plan, the backend code, SQL, seeds, scripts, tests 
 
 AI also checked the data (1,993 cards, 66 with no number, 799 with no variety, prices end 2026-11-02), probed every image link (27 broken, largest 14.4 MB, some with the wrong content type) and read the current docs for Fastify, sharp, node-postgres and node:test before using them.
 
+Step 6, all of it: the freeze purchases on the server, the fake store, the shop and its tests. The owner set the rules: one grant for each transaction, counted from when it began, refunds recorded, nothing that can cost an offline day.
+
 Step 5, all of it: payments on the server, the fake Stripe, the streak screen, the sheet and the dev menu. The owner set the rules for money, and filled in the keys. AI only checked that they were test keys, and never saw them.
 
 Step 4, all of it: the collection, card details, chart, their tests and the measurements. The owner asked for the rules that matter: why a picture failed, and the one gate.
@@ -15,6 +17,14 @@ Step 4, all of it: the collection, card details, chart, their tests and the meas
 Step 2, all of it: the app (Expo SDK 58), its tests, the icons, the image warming script and the Dockerfile. The owner chose the loop, the rules for the outbox and what the dev menu must do. AI chose the look. The Gesture Handler docs did not load, so its version 3 API was read from the installed type files.
 
 ## Where AI was wrong
+
+On the shop (step 6), and what it found in step 5:
+
+- **A declined payment for an old break stayed in the way of a new one.** The app paid for the saved payment first and the offer second, so "Try again" asked for a day nobody could win back, with no way out. The owner found it. AI had tested one break at a time.
+- **"Checking your payment" showed behind the open sheet**, while the person was still typing the card number. The owner saw it.
+- **A check that ran while the sheet was open could write "not paid" on disk.** A kill after that would have believed it. Found while fixing the line above. Now nothing is checked until the sheet is closed.
+- **The first version of the shop would have said "Paid" instead of "Bought"**, because the store's own event confirmed the purchase before the code that was waiting for it. Found rereading, before the tests.
+- **An airplane mode test proved nothing**: the cable kept the old connection alive, and the purchase went through. Done again with the server stopped too.
 
 On payments (step 5):
 
@@ -74,6 +84,8 @@ On the backend (step 1):
 - The first way of choosing a reward, which only preferred cards that were not promised. Now it avoids them when promising and may take one when finishing.
 
 ## How the tests were checked
+
+For step 6, 10 rules of the shop were broken on purpose on the server. All 10 were caught.
 
 All the tests for lateness passed the first time, which proves little. So 51 rules were broken on purpose, one at a time, to see if a test would fail. 46 were caught by the tests as first written. Of the other 5:
 

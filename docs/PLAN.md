@@ -12,7 +12,7 @@
 | 3 | App: make the loop solid. Outbox, kill mid-swipe, kill mid-reveal, phone call, no wifi, 11:58pm | 2.0 | 8.5 |
 | 4 | Collection (2,000 cards, smooth on a cheap Android) and card details. Built, on an emulator and a simulator so far. Never on a cheap Android | 2.0 | 10.5 |
 | 5 | Streak screen and win back with Stripe test mode. Built, on an emulator and a simulator, with real Stripe test payments | 1.75 | 12.25 |
-| 6 | Shop and the fake store for freezes | 1.0 | 13.25 |
+| 6 | Shop and the fake store for freezes. Built, tested on the Android emulator only | 1.0 | 13.25 |
 | 7 | Cheap Android pass, empty and error states, the check-in feedback | 1.25 | 14.5 |
 | 8 | Recording, README from a fresh clone, final DECISIONS and AI notes | 0.5 | 15.0 |
 
@@ -59,7 +59,7 @@ A fresh clone runs from README.md in under 10 minutes, all tests pass, and a scr
 `brief.md` wins. These are the places it mattered.
 
 1. **Binder.** Instruction: binder not now. Brief: `collector@pullday.test` has 5 binder pages filled. So the binder table and that seed are built, with no binder endpoints.
-2. **Freeze cap.** Instruction: a late offline completion returns the freeze. Brief: hold up to 2. If returning it would make 3, the freeze is marked `refund_due` and not added. No money moves until step 5.
+2. **Freeze cap.** Instruction: a late offline completion returns the freeze. Brief: hold up to 2. If returning it would make 3, the freeze is marked `refund_due` and not added. Step 6 does the same when a purchase completes at 2, and tells the person.
 3. **Order.** Brief advises one full loop end to end first. Instruction is the whole backend first. Advice is not a rule, so the order stands, but the loop is built first inside step 1 and the backend is boxed at 3 hours.
 
 ## Readings of the rules that need a decision
