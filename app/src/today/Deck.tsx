@@ -85,6 +85,7 @@ export function Deck({ challenge, answers: saved, onBegin, onAnswer }: Props) {
   const top = useSharedValue(saved.length); // the card a finger moves. Decided on the UI thread only
   const size = useSharedValue<Size>({ width: 1, height: 1 });
   const bumps = useBumps();
+  const [fills] = useState(() => challenge.cards.map((_, i) => makeMutable(i < saved.length ? 1 : 0))); // the dots
   const index = answers.length;
 
   // The ones a finger can reach first, the rest straight after, all before the first swipe is done.
@@ -119,6 +120,7 @@ export function Deck({ challenge, answers: saved, onBegin, onAnswer }: Props) {
       if (!place || i !== top.value) return; // already thrown
       top.value = i + 1;
       bump(bumps[rarity]);
+      fills[i]!.value = withSpring(1, { duration: 380, dampingRatio: 0.5 });
       place.verdict.value = rarities[i] === rarity ? 1 : 2;
       const { width, height } = size.value;
       if (reduced) {
@@ -135,7 +137,7 @@ export function Deck({ challenge, answers: saved, onBegin, onAnswer }: Props) {
       }
       scheduleOnRN(answered, i, rarity);
     },
-    [answered, bumps, places, rarities, reduced, size, top, windowHeight],
+    [answered, bumps, fills, places, rarities, reduced, size, top, windowHeight],
   );
 
   const press = useCallback(
@@ -160,7 +162,7 @@ export function Deck({ challenge, answers: saved, onBegin, onAnswer }: Props) {
 
   return (
     <View style={styles.fill}>
-      <Pips cards={cards} answers={answers} places={places} top={top} />
+      <Pips cards={cards} answers={answers} places={places} fills={fills} />
       <View style={styles.verdict} accessibilityLiveRegion="polite">
         {last ? (
           <>
@@ -470,7 +472,7 @@ const Pile = memo(function Pile({ rarity, way, places, top, size, bump, onPress,
   );
 });
 
-const Pips = memo(function Pips({ cards, answers, places, top }: { cards: Card[]; answers: Rarity[]; places: Place[]; top: SharedValue<number> }) {
+const Pips = memo(function Pips({ cards, answers, places, fills }: { cards: Card[]; answers: Rarity[]; places: Place[]; fills: SharedValue<number>[] }) {
   return (
     <View
       style={styles.pips}
@@ -479,15 +481,14 @@ const Pips = memo(function Pips({ cards, answers, places, top }: { cards: Card[]
     >
       {cards.map((card, i) => {
         const answer = answers[i];
-        return <Pip key={card.id} i={i} now={i === answers.length} right={answer === undefined ? null : answer === card.rarity} place={places[i]!} top={top} />;
+        return <Pip key={card.id} now={i === answers.length} right={answer === undefined ? null : answer === card.rarity} place={places[i]!} full={fills[i]!} />;
       })}
     </View>
   );
 });
 
 /** Fills the moment the card is let go. */
-const Pip = memo(function Pip({ i, now, right, place, top }: { i: number; now: boolean; right: boolean | null; place: Place; top: SharedValue<number> }) {
-  const full = useDerivedValue(() => withSpring(top.value > i ? 1 : 0, { duration: 380, dampingRatio: 0.5 }));
+const Pip = memo(function Pip({ now, right, place, full }: { now: boolean; right: boolean | null; place: Place; full: SharedValue<number> }) {
   const fill = useAnimatedStyle(() => ({ opacity: Math.min(1, full.value * 3), transform: [{ scale: full.value }] }));
   const wrong = useAnimatedStyle(() => ({ opacity: place.verdict.value === 2 ? 1 : 0 }));
   return (
