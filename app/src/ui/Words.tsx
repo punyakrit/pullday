@@ -1,10 +1,10 @@
 import { Text, type TextProps } from 'react-native';
-import { colors, display } from './theme';
+import { colors, serif } from './theme';
 
 const styles = {
-  title: { fontFamily: display.bold, fontSize: 30, lineHeight: 36, color: colors.ink },
-  heading: { fontFamily: display.semi, fontSize: 22, lineHeight: 28, color: colors.ink },
-  label: { fontFamily: display.semi, fontSize: 17, lineHeight: 22, color: colors.ink },
+  title: { fontFamily: serif, fontSize: 38, lineHeight: 44, letterSpacing: -1.1, color: colors.ink },
+  heading: { fontFamily: serif, fontSize: 27, lineHeight: 32, letterSpacing: -0.8, color: colors.ink },
+  label: { fontSize: 16, lineHeight: 22, fontWeight: '600', color: colors.ink },
   body: { fontSize: 16, lineHeight: 23, color: colors.ink },
   soft: { fontSize: 15, lineHeight: 21, color: colors.soft },
 } as const;

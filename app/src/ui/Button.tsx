@@ -1,39 +1,40 @@
-import { ActivityIndicator, Pressable, type PressableProps, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, type PressableProps, StyleSheet } from 'react-native';
+import { Press } from './Press';
 import { Words } from './Words';
+import { hairline } from './hairline';
 import { colors } from './theme';
 
-type Props = Omit<PressableProps, 'children' | 'style'> & { title: string; kind?: 'main' | 'quiet'; busy?: boolean };
+type Props = Omit<PressableProps, 'children' | 'style'> & { title: string; kind?: 'main' | 'quiet' | 'light' | 'dark'; busy?: boolean };
 
+/** `light` and `dark` are the main and the quiet one on the stage. */
 export function Button({ title, kind = 'main', busy = false, disabled, ...rest }: Props) {
-  const main = kind === 'main';
+  const color = kind === 'quiet' || kind === 'light' ? colors.ink : colors.onInk;
   return (
-    <View style={styles.clip}>
-      <Pressable
-        accessibilityRole="button"
-        // Always named. Without a name Android reads out "busy", and React Native never takes that back.
-        accessibilityLabel={title}
-        accessibilityState={{ disabled: Boolean(disabled) || busy, busy }}
-        android_ripple={{ color: main ? '#00000022' : '#FFFFFF22' }}
-        disabled={disabled || busy}
-        style={({ pressed }) => [styles.button, main ? styles.main : styles.quiet, (pressed || disabled) && styles.dim]}
-        {...rest}
-      >
-        {busy ? (
-          <ActivityIndicator color={main ? colors.onLabel : colors.ink} />
-        ) : (
-          <Words kind="label" style={{ color: main ? colors.onLabel : colors.ink, textAlign: 'center', alignSelf: 'stretch' }}>
-            {title}
-          </Words>
-        )}
-      </Pressable>
-    </View>
+    <Press
+      accessibilityRole="button"
+      // Always named. Without a name Android reads out "busy", and React Native never takes that back.
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: Boolean(disabled) || busy, busy }}
+      disabled={disabled || busy}
+      inner={[styles.button, styles[kind], disabled && styles.dim]}
+      {...rest}
+    >
+      {busy ? (
+        <ActivityIndicator color={color} />
+      ) : (
+        <Words kind="label" style={{ color, textAlign: 'center', alignSelf: 'stretch' }}>
+          {title}
+        </Words>
+      )}
+    </Press>
   );
 }
 
 const styles = StyleSheet.create({
-  clip: { borderRadius: 10, overflow: 'hidden' },
-  button: { minHeight: 52, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  main: { backgroundColor: colors.label },
-  quiet: { backgroundColor: colors.raised },
-  dim: { opacity: 0.7 },
+  button: { minHeight: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 8 },
+  main: { backgroundColor: colors.ink },
+  quiet: { backgroundColor: colors.panel, borderWidth: hairline, borderColor: '#C9C9C9' },
+  light: { backgroundColor: '#FFFFFF' },
+  dark: { backgroundColor: '#FFFFFF1A', borderWidth: hairline, borderColor: '#FFFFFF55' },
+  dim: { opacity: 0.5 },
 });

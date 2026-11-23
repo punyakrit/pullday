@@ -1,28 +1,30 @@
 import { memo } from 'react';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import type { Rarity } from '../core/types';
-import { colors, holoColors } from './theme';
+import { colors, holoBright, holoColors, rarityFill, rarityBright } from './theme';
 
 const STAR = 'M12 1.8l3.1 6.5 7.1.9-5.2 4.9 1.3 7.1L12 17.8l-6.3 3.4 1.3-7.1L1.8 9.2l7.1-.9z';
 
 /** Circle common, diamond rare, star holo. Never colour alone. */
-export const Shape = memo(function Shape({ rarity, size = 20, color }: { rarity: Rarity; size?: number; color?: string }) {
+export const Shape = memo(function Shape({ rarity, size = 20, color, bright = false }: { rarity: Rarity; size?: number; color?: string; bright?: boolean }) {
+  const fill = bright ? rarityBright : rarityFill;
+  const stops = bright ? holoBright : holoColors;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
-      {rarity === 'common' && <Circle cx={12} cy={12} r={8.5} fill={color ?? colors.common} />}
+      {rarity === 'common' && <Circle cx={12} cy={12} r={8.5} fill={color ?? fill.common} />}
       {rarity === 'rare' && (
-        <Rect x={4.6} y={4.6} width={14.8} height={14.8} rx={1.5} fill={color ?? colors.rare} rotation={45} origin="12, 12" />
+        <Rect x={4.6} y={4.6} width={14.8} height={14.8} rx={1.5} fill={color ?? fill.rare} rotation={45} origin="12, 12" />
       )}
       {rarity === 'holo' && (
         <>
           <Defs>
-            <LinearGradient id="holo" x1="0" y1="0" x2="1" y2="1">
-              {holoColors.map((stop, i) => (
-                <Stop key={stop} offset={i / (holoColors.length - 1)} stopColor={stop} />
+            <LinearGradient id={bright ? 'holoBright' : 'holo'} x1="0" y1="0" x2="1" y2="1">
+              {stops.map((stop, i) => (
+                <Stop key={stop} offset={i / (stops.length - 1)} stopColor={stop} />
               ))}
             </LinearGradient>
           </Defs>
-          <Path d={STAR} fill={color ?? 'url(#holo)'} />
+          <Path d={STAR} fill={color ?? (bright ? 'url(#holoBright)' : 'url(#holo)')} />
         </>
       )}
     </Svg>
@@ -60,7 +62,7 @@ export const Icon = memo(function Icon({
   );
 });
 
-export const Flame = memo(function Flame({ size = 20, color = colors.rare }: { size?: number; color?: string }) {
+export const Flame = memo(function Flame({ size = 20, color = colors.flame }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path

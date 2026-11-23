@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { colors, space } from './theme';
+import { type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
+import { hairline } from './hairline';
+import { colors, softShadow, space } from './theme';
 
-export function Panel({ children, strong = false }: { children: ReactNode; strong?: boolean }) {
-  return <View style={[styles.panel, strong && styles.strong]}>{children}</View>;
+export function Panel({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+  return <View style={[styles.panel, style]}>{children}</View>;
 }
 
+export const panel = { borderRadius: 18, backgroundColor: colors.panel, borderWidth: hairline, borderColor: colors.line, boxShadow: softShadow } as const;
+
 const styles = StyleSheet.create({
-  panel: { borderRadius: 12, backgroundColor: colors.deep, padding: space.l, gap: space.s },
-  strong: { backgroundColor: colors.raised, borderWidth: 1, borderColor: colors.line },
+  panel: { ...panel, padding: space.xl, gap: space.m },
 });

@@ -46,8 +46,7 @@
         "expo-font",
         {
           "fonts": [
-            "./assets/fonts/BarlowSemiCondensed-SemiBold.ttf",
-            "./assets/fonts/BarlowSemiCondensed-Bold.ttf"
+            "./assets/fonts/InstrumentSerif-Regular.ttf"
           ]
         }
       ],
