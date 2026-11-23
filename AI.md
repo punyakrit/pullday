@@ -23,7 +23,7 @@ On the shop (step 6), and what it found in step 5:
 - **A declined payment for an old break stayed in the way of a new one.** The app paid for the saved payment first and the offer second, so "Try again" asked for a day nobody could win back, with no way out. The owner found it. AI had tested one break at a time.
 - **"Checking your payment" showed behind the open sheet**, while the person was still typing the card number. The owner saw it.
 - **A check that ran while the sheet was open could write "not paid" on disk.** A kill after that would have believed it. Found while fixing the line above. Now nothing is checked until the sheet is closed.
-- **The first version of the shop would have said "Paid" instead of "Bought"**, because the store's own event confirmed the purchase before the code that was waiting for it. Found rereading, before the tests.
+- **The first version of the shop would never have said "Bought"**, because the store's own event confirmed the purchase before the code that was waiting for it. Found rereading, before the tests.
 - **An airplane mode test proved nothing**: the cable kept the old connection alive, and the purchase went through. Done again with the server stopped too.
 
 On payments (step 5):
