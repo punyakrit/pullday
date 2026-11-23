@@ -15,6 +15,11 @@ export function widthFor(points: number): ImageWidth {
   return pixels <= 230 ? 200 : pixels <= 640 ? 400 : 1080;
 }
 
+/** In a grid, a little soft is better than four times the download. */
+export function gridSize(points: number): ImageWidth {
+  return points * PixelRatio.get() <= 300 ? 200 : 400;
+}
+
 const asked = new Set<string>();
 const queue: string[] = [];
 let running = 0;

@@ -103,9 +103,9 @@ function Layer({ cardId, url, radius, priority, fade }: { cardId: string; url: s
 const FADE = { duration: 120, effect: 'cross-dissolve', skipOnCacheHit: 'memory' } as const;
 
 const styles = StyleSheet.create({
-  tile: { backgroundColor: colors.deep, alignItems: 'center', justifyContent: 'center' },
+  tile: { backgroundColor: colors.raised, alignItems: 'center', justifyContent: 'center' },
   words: { paddingHorizontal: 6, gap: 2 },
-  name: { textAlign: 'center', fontSize: 12, lineHeight: 15, color: colors.line },
+  name: { textAlign: 'center', fontSize: 12, lineHeight: 15, color: colors.soft },
   text: { backgroundColor: '#E4EBE7', justifyContent: 'space-between' },
   greyText: { backgroundColor: '#9FB0AC' },
   onText: { color: colors.onLabel },
