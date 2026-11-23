@@ -56,6 +56,12 @@ async function ask<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
+/** Stripe's words about a card are for the person. Its other words are for programmers. */
+export function inWords(error: { type?: string; code?: string; message?: string }): string {
+  if (error.code === 'payment_intent_authentication_failure') return 'Your bank did not approve it.';
+  return error.type === 'card_error' && error.message ? error.message : 'The payment did not go through.';
+}
+
 function read(intent: Stripe.PaymentIntent): Intent {
   const status = {
     requires_payment_method: 'open',
@@ -67,7 +73,7 @@ function read(intent: Stripe.PaymentIntent): Intent {
     canceled: 'canceled',
   }[intent.status as string] as Intent['status'] | undefined;
   if (!status) throw new StripeUnreachable();
-  const problem = status === 'open' ? (intent.last_payment_error?.message ?? null) : null;
+  const problem = status === 'open' && intent.last_payment_error ? inWords(intent.last_payment_error) : null;
   return { id: intent.id, status, clientSecret: intent.client_secret ?? '', problem };
 }
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { after, beforeEach, describe, test } from 'node:test';
-import { HOUR, Phone, advance, app, clean, close, keyless, pool, setClock, stripe, stripeKeys } from './helpers.ts';
+import { HOUR, Phone, advance, app, clean, close, keyless, inWords, pool, setClock, stripe, stripeKeys } from './helpers.ts';
 
 beforeEach(() => clean());
 after(close);
@@ -376,6 +376,12 @@ describe('without keys', () => {
     ]) {
       assert.throws(() => stripeKeys(env), (err: Error) => /not a test key/.test(err.message) && !err.message.includes('abc123'));
     }
+  });
+
+  test('what Stripe says about a card is shown, what it says to programmers is not', () => {
+    assert.equal(inWords({ type: 'card_error', code: 'card_declined', message: 'Your card was declined.' }), 'Your card was declined.');
+    assert.equal(inWords({ type: 'invalid_request_error', code: 'payment_intent_authentication_failure', message: 'You can provide payment_method_data' }), 'Your bank did not approve it.');
+    assert.equal(inWords({ type: 'api_error', message: 'No such thing' }), 'The payment did not go through.');
   });
 
   test('tests never touch the real Stripe', () => {

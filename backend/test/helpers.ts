@@ -36,7 +36,7 @@ const streakModule = await import('../src/streak.ts');
 const { TEST_EMAILS } = await import('../src/auth.ts');
 const { resetAccount, seedAll } = await import('../src/seed.ts');
 const { pickCards } = await import('../src/challenges.ts');
-const { StripeUnreachable, stripeKeys } = await import('../src/stripe.ts');
+const { StripeUnreachable, inWords, stripeKeys } = await import('../src/stripe.ts');
 
 // Tests empty the users table. If a test file imports anything from src/ that opens the
 // database, it can be loaded before the address above is set. Never go on if that happened.
@@ -46,7 +46,7 @@ if (connected.rows[0]?.name !== 'pullday_test') {
 }
 await migrate();
 
-export { TEST_EMAILS, buildApp, pickCards, stripeKeys, pool, resetAccount, seedAll };
+export { TEST_EMAILS, buildApp, pickCards, inWords, stripeKeys, pool, resetAccount, seedAll };
 export const stripe = new FakeStripe();
 stripe.noAnswer = () => new StripeUnreachable();
 export const app = buildApp({ devTools: true, stripe });
