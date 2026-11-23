@@ -26,7 +26,7 @@ export type Reply<T> = { data: T; sentAt: number; receivedAt: number; etag: stri
 type Options = { baseUrl: string; fetch: typeof fetch; now: () => number; timeoutMs?: number };
 
 export class Api {
-  token: string | null = null;
+  private token: string | null = null;
   /** Dev menu: behave as if there is no connection, except to the dev tools themselves. */
   pretendOffline = false;
   readonly baseUrl: string;
@@ -35,6 +35,16 @@ export class Api {
   constructor(options: Options) {
     this.options = options;
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
+  }
+
+  startSession(token: string): void {
+    this.token = token;
+  }
+
+  /** However it ends. The dev menu is out of reach after this, so nothing it turned on may stay on. */
+  endSession(): void {
+    this.token = null;
+    this.pretendOffline = false;
   }
 
   async call<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: object, headers: Record<string, string> = {}): Promise<Reply<T>> {

@@ -380,11 +380,24 @@ describe('sessions', () => {
   test("a late 401 for an old session does not end the new one", async () => {
     const { world, engine } = await opened('2026-11-23T12:00:00Z');
     world.respond = () => {
-      world.api.token = 'new-token';
+      world.api.startSession('new-token');
       return { status: 401, body: { error: 'signed_out', message: '' } };
     };
     await engine.sync();
     assert.equal(world.signedOut, 0);
+  });
+
+  test('pretending to be offline ends with the session, so the next log in gets through', async () => {
+    const { world, engine } = await opened('2026-11-23T12:00:00Z');
+    world.api.pretendOffline = true;
+    await engine.sync();
+    assert.equal(engine.getSnapshot().connection, 'offline');
+    assert.deepEqual(world.calls, []);
+    // The rest is what session.ts does on a log out, or when the server ends the session.
+    engine.stop();
+    world.api.endSession();
+    await world.api.call('POST', '/auth/login', {});
+    assert.deepEqual(world.calls, ['POST /auth/login']);
   });
 
   test('one account never sees what another left on the phone', async () => {

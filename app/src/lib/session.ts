@@ -46,7 +46,7 @@ function deviceId(): string {
 }
 
 function enter(user: User, token: string): void {
-  api.token = token;
+  api.startSession(token);
   const engine = new Engine({
     api,
     storage,
@@ -61,7 +61,7 @@ function enter(user: User, token: string): void {
 
 async function leave(message: string | null): Promise<void> {
   if (session.status === 'in') session.engine.stop();
-  api.token = null;
+  api.endSession();
   set({ status: 'out', email: storage.get(LAST_EMAIL) ?? '', message });
   // What is unsent stays on the phone, and is sent when the same account logs in again.
   await SecureStore.deleteItemAsync(KEY).catch(() => {});

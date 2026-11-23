@@ -87,7 +87,7 @@ export class World {
 
   /** Open the app. Call it again for what a killed app sees. */
   open(user: User = USER): Engine {
-    this.api.token = 'token';
+    this.api.startSession('token');
     return new Engine({
       api: this.api,
       storage: this.storage,
