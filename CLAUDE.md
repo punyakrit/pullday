@@ -29,5 +29,6 @@
 8. Missed days settle oldest first on the next contact. A freeze counts only if bought before that day ended. If an offline completion arrives later for a frozen day, mark it done and return the freeze.
 9. A break is recorded at the end of the missed day. Win back fills every missed day since, and keeps any streak built after.
 10. Money is integer cents.
+11. The app sends its outbox first, in order: start, complete, reveal seen. A refused start never stops the complete behind it. While a challenge from a day that has ended is on the phone (finished but unsent, or begun but unfinished up to 60 minutes after the day ended), the app makes no call that counts as contact.
 
 Where these meet `brief.md` or need a finer reading, see the last two sections of `docs/PLAN.md`.
