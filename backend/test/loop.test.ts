@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, beforeEach, test } from 'node:test';
-import { ANSWERS, Phone, clean, close } from './helpers.ts';
+import { ANSWERS, Phone, clean, close, pickCards, pool } from './helpers.ts';
 
 beforeEach(() => clean());
 after(close);
@@ -50,6 +50,11 @@ test('a bundle is 8 different cards with at least 2 of each rarity, and never th
     }
     assert.notEqual(challenge.reward.id, tomorrow.reward.id);
   }
+});
+
+test('the reward is never one of the 8, over thousands of bundles', async () => {
+  const holo = (await pool.query<{ id: string }>(`select id from cards where rarity = 'holo' limit 1`)).rows[0]!.id;
+  for (let i = 0; i < 2000; i++) assert.ok(!(await pickCards(holo)).includes(holo));
 });
 
 test('asking again gives the same challenge and the same reward', async () => {

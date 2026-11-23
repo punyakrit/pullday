@@ -25,5 +25,12 @@ AI also checked the data (1,993 cards, 66 with no number, 799 with no variety, p
 
 ## How the tests were checked
 
-All the tests for lateness passed the first time, which proves little. So each rule was broken on purpose, one at a time, to see if a test would fail. Results are below.
+All the tests for lateness passed the first time, which proves little. So 51 rules were broken on purpose, one at a time, to see if a test would fail. 46 were caught by the tests as first written. Of the other 5:
 
+- Keeping the frozen rows when settlement replays. That would have been a free freeze, and no test covered it. Added.
+- Grace accepting a start from after the day ended. The start endpoint hid it. The rule now has its own tests.
+- Dev calls counting as contact. The test made its call at the wrong moment. Fixed.
+- The reward turning up among the 8 cards. The test passed by luck. Replaced.
+- Clearing the contact time on reset. Nothing failed because the line did nothing. Removed.
+
+All 50 that remain are caught. The images were tested against a fake origin that misbehaves, and by hand against about 80 real ones, including all 27 broken links.

@@ -3,7 +3,7 @@
 ## Rules
 
 - `brief.md` is the source of truth. If anything else conflicts with it, `brief.md` wins and you say so.
-- Small, frequent commits with plain messages. Never squash, rewrite or backdate history.
+- One commit per finished piece of work, with a plain message. Not one per change. Never squash, rewrite or backdate history.
 - Check current docs before using a library. Do not guess APIs.
 - Keep the backend small and simple. Correctness matters there. Most of the effort goes to the phone.
 - Never commit or print secrets. The owner fills `.env` by hand. Keep `.env.example` current.

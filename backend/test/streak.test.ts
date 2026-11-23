@@ -196,6 +196,18 @@ describe('late sync after a freeze', () => {
     assert.deepEqual(await plane.days(), ['20 done', '21 done', '22 done', '23 done', '24 frozen']);
   });
 
+  test('two days frozen, the first turns out done: the second still costs a freeze', async () => {
+    const { plane, tablet, bundle } = await planeAndTablet();
+    await plane.buyFreeze();
+    await plane.buyFreeze();
+    setClock('2026-11-25T09:00:00Z');
+    assert.equal((await tablet.today()).freezes, 0);
+    const done = await plane.complete(bundle.challenge.id);
+    assert.equal(done.body.streak, 4);
+    assert.equal(done.body.freezes, 1); // one back, not two
+    assert.deepEqual(await plane.days(), ['20 done', '21 done', '22 done', '23 done', '24 frozen']);
+  });
+
   test('a freeze bought too late for the next day does not save it after all', async () => {
     const { plane, tablet, bundle } = await planeAndTablet();
     await plane.buyFreeze('2026-11-25T08:00:00Z');

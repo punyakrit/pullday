@@ -99,7 +99,6 @@ export async function resetAccount(email: string, timezone?: string): Promise<vo
       for (const table of ['binder_slots', 'collection', 'challenges', 'freezes', 'day_records', 'streak_breaks', 'user_timezones']) {
         await db.query(`delete from ${table} where user_id = $1`, [userId]);
       }
-      await db.query('update devices set last_contact_at = null where user_id = $1', [userId]);
       await db.query(
         `update users set password_hash = $2, is_test = true, dev_offset_ms = 0, settled_through = $3, created_at = $4 where id = $1`,
         [userId, passwordHash, before, at],

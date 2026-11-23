@@ -163,6 +163,8 @@ describe('dev tools', () => {
     const phone = await open('new');
     const { challenge } = await phone.today();
     await phone.call('POST', '/dev/move-time', { minutes: 24 * 60 });
+    await phone.call('POST', '/dev/move-time', { minutes: 60 }); // a dev call made after the day ended
+    await phone.call('POST', '/dev/grant-card');
     assert.equal((await phone.complete(challenge.id)).status, 200);
   });
 
