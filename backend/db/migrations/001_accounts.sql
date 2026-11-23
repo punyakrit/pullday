@@ -1,6 +1,6 @@
 -- Accounts, the phones they use, and sessions.
--- Times that the rules depend on are always written by the API from now(user),
--- so there are no "default now()" columns here.
+-- Times that the rules depend on are always written by the API from now(user).
+-- sessions.created_at is the only default now(), and no rule reads it.
 
 create table users (
   id              uuid primary key default gen_random_uuid(),
