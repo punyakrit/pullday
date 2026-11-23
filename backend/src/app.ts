@@ -15,7 +15,7 @@ declare module 'fastify' {
   interface FastifyContextConfig {
     /** Anyone may call it. */
     open?: boolean;
-    /** Does not count as this phone having been online. Outbox calls, log out, dev tools. */
+    /** Does not count as this phone having been online. Outbox calls (start, complete, reveal seen), log out, dev tools. */
     quiet?: boolean;
   }
   interface FastifyRequest {
@@ -117,7 +117,7 @@ export function buildApp(options: { devTools: boolean; logger?: boolean; images?
   );
   app.post<{ Params: { id: string } }>(
     '/challenges/:id/start',
-    { schema: { params: idParam, body: nothing } },
+    { config: { quiet: true }, schema: { params: idParam, body: nothing } }, // queued offline, so it can arrive late
     async (request) => asUser(request, (db, user) => challenges.start(db, user, request.params.id)),
   );
   app.post<{ Params: { id: string }; Body: { answers: Rarity[] } }>(

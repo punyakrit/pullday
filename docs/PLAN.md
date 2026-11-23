@@ -66,7 +66,8 @@ A fresh clone runs from README.md in under 10 minutes, all tests pass, and a scr
 
 | Question | Choice |
 | --- | --- |
-| "Has not contacted the server since": since what? | Since that day ended. Any logged-in call counts as contact, except the outbox calls (complete, reveal seen), logging in or out, and dev tools. Pictures need no login and do not count. Two offline days then sync one after the other without the first blocking the second. |
+| "Has not contacted the server since": since what? | Since that day ended. Any logged-in call counts as contact, except the outbox calls (start, complete, reveal seen), logging in or out, and dev tools. Pictures need no login and do not count. Two offline days then sync one after the other without the first blocking the second. |
+| What the phone must do in return | Outbox first, in order: start, complete, reveal seen. A refused start never stops the complete behind it. While a challenge from a day that has ended is on the phone, finished but unsent, or begun but unfinished up to 60 minutes after the day ended, the app makes no call that counts as contact. |
 | Do won back days add to the streak? | No, same as frozen. A 40 day streak comes back as 40, not 41. |
 | `broken@`, "broke yesterday" | Yesterday is the missed day, so the break is at the end of yesterday and the window closes 48 hours after that. |
 | Midnight passes with a challenge open | The day is not settled for 60 minutes if it was started, so no freeze is spent and no break shows while the user is still swiping. |

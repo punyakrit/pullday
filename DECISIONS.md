@@ -12,7 +12,7 @@ Six of the nine bad reviews are about days, money or lost progress. Those are wr
 
 **A zone change waits for the end of the current day, once every 7 days.** The end of the running day never moves, so it cannot be used to rescue a day at 11:59pm. The next day is longer going west and shorter going east. Dates never repeat. A day shorter than 4 hours, or one skipped by the date line, cannot break a streak.
 
-**Late is allowed when it was honest.** A challenge belongs to the day it was issued for. It counts if it arrives that day, or within 60 minutes after if we heard it start, or within 48 hours if that phone already had the bundle and has not talked to us since the day ended. The outbox calls do not count as talking to us, so two offline days can sync one after the other.
+**Late is allowed when it was honest.** A challenge belongs to the day it was issued for. It counts if it arrives that day, or within 60 minutes after if we heard it start, or within 48 hours if that phone already had the bundle and has not talked to us since the day ended. The outbox calls (start, complete, reveal seen) do not count as talking to us, so two offline days can sync one after the other.
 
 **Missed days settle oldest first, on the next contact.** A day with a started challenge is not settled for 60 minutes, so nobody sees a broken streak while still swiping. When a late day arrives, settlement replays from that day, so the result is what it would have been had we known. A freeze it gives back can then save a later day.
 
@@ -31,7 +31,7 @@ Payments, shop and binder screens are later steps. Binder is the planned cut. Th
 
 ## Known limits and what is still broken
 
-- A phone kept offline can claim a day up to 48 hours late. Nothing can tell that from a plane. One device kept offline while another is used makes this easy.
+- A phone kept offline, or made to send nothing but its outbox, can claim a day up to 48 hours late. Nothing can tell that from a plane. One device kept offline while another is used makes this easy. A quiet start does not widen this: a start on an ended day writes nothing, so sending it changes nothing, and skipping it was always possible.
 - The bundle holds the answers and the reward, so a curious person can read them. The score does not count and the card is theirs anyway.
 - After a trip shorter than 7 days you cannot move your zone straight back.
 - If a won back day turns out to have been done offline, it becomes done, but the $4.99 is not handled. That belongs to payments.

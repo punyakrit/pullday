@@ -81,7 +81,7 @@ describe('11:58pm', () => {
     assert.equal(today.resume, null);
   });
 
-  test('a start after midnight does not count as a start', async () => {
+  test('a start after midnight is refused, and gives none of the 60 minutes', async () => {
     const phone = await Phone.signUp();
     setClock('2026-11-23T23:58:00Z');
     const { challenge } = await phone.today();
@@ -89,7 +89,10 @@ describe('11:58pm', () => {
     const started = await phone.start(challenge.id);
     assert.equal(started.status, 409);
     assert.equal(started.body.error, 'too_late');
-    // The refused start still showed the phone was online, so it cannot claim to have been offline.
+    const { rows } = await pool.query('select started_at from challenges where id = $1', [challenge.id]);
+    assert.equal(rows[0].started_at, null);
+    const today = await phone.today(); // online, so only a start from before midnight could save it
+    assert.equal(today.resume, null);
     assert.equal((await phone.complete(challenge.id)).body.error, 'too_late');
   });
 
@@ -131,6 +134,70 @@ describe('plane with no wifi', () => {
     assert.equal(second.body.streak, 2);
     const owned = (await phone.collection()).map((card) => card.cardId).sort();
     assert.deepEqual(owned, [challenge.reward.id, tomorrow.reward.id].sort());
+  });
+
+  // The app queues the start as well as the finish. The start is refused, because the day is
+  // over by the time we hear it. That refusal must not cost the finish that comes after it.
+  test('a whole challenge in the air: the start and the finish are both sent the next morning', async () => {
+    const phone = await Phone.signUp();
+    await phone.playOn('2026-11-23');
+    setClock('2026-11-24T20:00:00Z');
+    const { challenge } = await phone.today();
+
+    setClock('2026-11-25T10:00:00Z');
+    const started = await phone.start(challenge.id);
+    assert.equal(started.status, 409);
+    assert.equal(started.body.error, 'too_late');
+    const done = await phone.complete(challenge.id);
+    assert.equal(done.status, 200);
+    assert.equal(done.body.day, '2026-11-24');
+    assert.equal(done.body.streak, 2);
+    assert.deepEqual(done.body.card, challenge.reward);
+  });
+
+  test('two whole days in the air, sent as start, finish, start, finish', async () => {
+    const phone = await Phone.signUp();
+    setClock('2026-11-23T20:00:00Z');
+    const { challenge, tomorrow } = await phone.today();
+
+    setClock('2026-11-25T10:00:00Z');
+    assert.equal((await phone.start(challenge.id)).body.error, 'too_late');
+    assert.equal((await phone.complete(challenge.id)).status, 200);
+    assert.equal((await phone.start(tomorrow.id)).body.error, 'too_late');
+    const second = await phone.complete(tomorrow.id);
+    assert.equal(second.status, 200);
+    assert.equal(second.body.streak, 2);
+    assert.deepEqual(second.body.card, tomorrow.reward);
+    assert.equal((await phone.collection()).length, 2);
+    assert.deepEqual(await phone.days(), ['23 done', '24 done']);
+  });
+
+  test("the start is sent the next morning with today's, before yesterday's finish", async () => {
+    const phone = await Phone.signUp();
+    setClock('2026-11-23T20:00:00Z');
+    const { challenge, tomorrow } = await phone.today();
+    setClock('2026-11-24T10:00:00Z');
+    await phone.start(challenge.id);
+    assert.equal((await phone.start(tomorrow.id)).status, 200); // a real start, on its own day
+    assert.equal((await phone.complete(challenge.id)).status, 200);
+    assert.equal((await phone.complete(tomorrow.id)).body.streak, 2);
+  });
+
+  test('a late start does not stretch the 48 hours, nor help a phone that was online', async () => {
+    const phone = await Phone.signUp();
+    setClock('2026-11-23T20:00:00Z');
+    const { challenge } = await phone.today();
+    setClock('2026-11-26T00:00:00.001Z');
+    await phone.start(challenge.id);
+    assert.equal((await phone.complete(challenge.id)).body.error, 'too_late');
+
+    await clean('2026-11-23T20:00:00Z');
+    const online = await Phone.signUp();
+    const bundle = (await online.today()).challenge;
+    setClock('2026-11-24T10:00:00Z');
+    await online.collection();
+    await online.start(bundle.id);
+    assert.equal((await online.complete(bundle.id)).body.error, 'too_late');
   });
 
   test('two days in the air, sent in the wrong order', async () => {

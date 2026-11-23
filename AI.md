@@ -11,6 +11,7 @@ AI also checked the data (1,993 cards, 66 with no number, 799 with no variety, p
 ## Where AI was wrong
 
 - **Tests emptied the real database.** One test file imported from `src/` directly, so the connection opened on the main database before the helper switched it to the test one. Every test in that file passed. It showed up only when the full-day script ran at the same time and was logged out mid-day. Now the tests refuse to run on any other database.
+- **The plane review would have come back.** A start counted as the phone being online, even when it was refused. The app queues the start with the finish, so the start sent the next morning would have made the finish too late. A test asserted this wrong behaviour on purpose. All 185 tests passed. Another Claude session reviewing the code found it, AI in this session did not. Three new tests failed before the fix and pass after it.
 - **First streak code told a repeated submit the wrong streak**, because it did not settle missed days first. Found by rereading, then tested.
 - **Promised one card twice.** With a single card left, today and tomorrow both reserved it. Found by rereading.
 - **A date that never happened could be claimed.** Crossing the date line leaves a day with no time in it, and the first version let an offline phone claim it. Found by rereading.

@@ -66,7 +66,7 @@ Send `Authorization: Bearer <token>` except where marked open. Errors are `{ "er
 | `POST /auth/logout` | Ends this session |
 | `PUT /me/timezone` | `timezone`. From the end of today, once every 7 days |
 | `GET /today` | Settles missed days. Streak, freezes, win back, bundles for today and tomorrow, unseen reveals |
-| `POST /challenges/:id/start` | Tells the server it began |
+| `POST /challenges/:id/start` | Tells the server it began. Refused with `too_late` once the day is over, which does no harm |
 | `POST /challenges/:id/complete` | `answers`: 8 of `common`, `rare`, `holo`. Safe to repeat |
 | `POST /challenges/:id/reveal-seen` | Safe to repeat |
 | `GET /collection` | Owned cards |
@@ -79,7 +79,7 @@ Send `Authorization: Bearer <token>` except where marked open. Errors are `{ "er
 
 `/dev/*` exists only with `DEV_TOOLS=1` and only works for the six test accounts.
 
-`deviceId` is a UUID the app makes once at install. `complete` and `reveal-seen` are the outbox: the app sends them before any other call after being offline.
+`deviceId` is a UUID the app makes once at install. `start`, `complete` and `reveal-seen` are the outbox: the app sends them, in order, before any other call after being offline. They never count as the phone having been online. A refused `start` must not stop the `complete` behind it.
 
 ## Stop
 
