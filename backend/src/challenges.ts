@@ -28,7 +28,7 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 /** 8 different cards: 2 common, 2 rare, 2 holo, and 2 from anywhere. Never the reward. */
-async function pickCards(rewardId: string | null): Promise<string[]> {
+export async function pickCards(rewardId: string | null): Promise<string[]> {
   const pool = shuffle((await catalogue()).list.filter((card) => card.id !== rewardId));
   const picked: CardSummary[] = [];
   for (const rarity of ['common', 'rare', 'holo'] as const) {
