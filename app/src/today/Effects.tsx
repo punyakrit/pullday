@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import Animated, { Extrapolation, type SharedValue, interpolate, useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Defs, Path, RadialGradient, Stop } from 'react-native-svg';
 import type { Rarity } from '../core/types';
-import { colors, holoColors } from '../ui/theme';
+import { holoBright, rarityBright } from '../ui/theme';
 
 /**
  * Light only: a few views, moved with transform and opacity by shared values. No blur, no shadow,
@@ -18,8 +18,8 @@ const ray = (i: number) => {
   const point = (a: number) => `${100 + Math.cos(a) * 100} ${100 + Math.sin(a) * 100}`;
   return `M100 100L${point(angle - half)}L${point(angle + half)}Z`;
 };
-const rayColors = (rarity: Rarity) => (rarity === 'holo' ? holoColors : [colors.rare]);
-const rayColor = (rarity: Rarity, i: number) => (rarity === 'holo' ? holoColors[i % holoColors.length]! : colors.rare);
+const rayColors = (rarity: Rarity) => (rarity === 'holo' ? holoBright : [rarityBright.rare]);
+const rayColor = (rarity: Rarity, i: number) => (rarity === 'holo' ? holoBright[i % holoBright.length]! : rarityBright.rare);
 
 /** Behind a rare or holo card. Drawn once, kept as a texture, then only turned. */
 export const Rays = memo(function Rays({ rarity, size, glow, turn }: { rarity: Rarity; size: number; glow: SharedValue<number>; turn: SharedValue<number> }) {
@@ -72,7 +72,7 @@ export const Sheen = memo(function Sheen({
       {rarity === 'holo' && (
         <Animated.View style={[{ position: 'absolute', left: -width * 0.5, width: width * 2, height, opacity: 0.22 }, foil]}>
           <LinearGradient
-            colors={[...holoColors, ...holoColors, holoColors[0]]}
+            colors={[...holoBright, ...holoBright, holoBright[0]]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0.35 }}
             style={StyleSheet.absoluteFill}

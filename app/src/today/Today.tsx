@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { router } from 'expo-router';
-import { useReducedMotion } from 'react-native-reanimated';
+import { router, useIsFocused } from 'expo-router';
+import Animated, { ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { bannerFor } from '../core/banner';
 import type { Engine, Snapshot } from '../core/engine';
 import { GRACE_MS, type PaymentState, type View as DayView } from '../core/state';
 import type { Rarity } from '../core/types';
+import { setStage } from '../lib/stage';
 import { useDayTimer, useEngine, useServerNow } from '../lib/useEngine';
 import { Button } from '../ui/Button';
-import { Flame, Icon } from '../ui/Icons';
+import { Icon } from '../ui/Icons';
+import { LiveFlame } from '../ui/LiveFlame';
+import { panel } from '../ui/Panel';
 import { Words } from '../ui/Words';
-import { colors, space } from '../ui/theme';
+import { hairline } from '../ui/hairline';
+import { colors, space, stage } from '../ui/theme';
 import { Deck } from './Deck';
 import { Done, countdown } from './Done';
 import { Reveal } from './Reveal';
@@ -51,15 +55,31 @@ export function Today({ engine }: { engine: Engine }) {
     if (revealId) engine.showReveal(revealId);
   }, [engine, revealId]);
 
+  // The reveal is on a dark stage. The light goes down and comes up again around it.
+  const dark = view.kind === 'reveal';
+  const focused = useIsFocused();
+  useEffect(() => {
+    setStage(dark && focused);
+    return () => setStage(false);
+  }, [dark, focused]);
+  const dim = useSharedValue(dark ? 1 : 0);
+  useEffect(() => {
+    dim.value = withTiming(dark ? 1 : 0, { duration: 360, reduceMotion: ReduceMotion.Never });
+  }, [dark, dim]);
+  const dimmed = useAnimatedStyle(() => ({ opacity: dim.value }));
+
   return (
-    <SafeAreaView edges={EDGES} style={styles.screen}>
-      <Header engine={engine} snapshot={snapshot} />
-      <Line engine={engine} snapshot={snapshot} view={view} />
-      {view.kind === 'challenge' && <Challenge key={view.challenge.id} engine={engine} view={view} />}
-      {view.kind === 'reveal' && <RevealOf key={view.reveal.challengeId} engine={engine} snapshot={snapshot} view={view} />}
-      {view.kind === 'done' && <Done engine={engine} snapshot={snapshot} view={view} />}
-      {view.kind === 'empty' && <Empty engine={engine} snapshot={snapshot} />}
-    </SafeAreaView>
+    <View style={styles.screen}>
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.dark, dimmed]} />
+      <SafeAreaView edges={EDGES} style={styles.fill}>
+        <Header engine={engine} snapshot={snapshot} dark={dark} />
+        <Line engine={engine} snapshot={snapshot} view={view} />
+        {view.kind === 'challenge' && <Challenge key={view.challenge.id} engine={engine} view={view} />}
+        {view.kind === 'reveal' && <RevealOf key={view.reveal.challengeId} engine={engine} snapshot={snapshot} view={view} />}
+        {view.kind === 'done' && <Done engine={engine} snapshot={snapshot} view={view} />}
+        {view.kind === 'empty' && <Empty engine={engine} snapshot={snapshot} />}
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -78,7 +98,8 @@ function RevealOf({ engine, snapshot, view }: { engine: Engine; snapshot: Snapsh
   return <Reveal reveal={reveal} today={reveal.day === snapshot.today?.day} onShown={shown} onClose={close} />;
 }
 
-function Header({ engine, snapshot }: { engine: Engine; snapshot: Snapshot }) {
+function Header({ engine, snapshot, dark }: { engine: Engine; snapshot: Snapshot; dark: boolean }) {
+  const { ink, soft } = dark ? stage : colors;
   const { streak, streakOld } = snapshot;
   return (
     <View style={styles.header}>
@@ -89,18 +110,18 @@ function Header({ engine, snapshot }: { engine: Engine; snapshot: Snapshot }) {
         accessibilityLabel={streak === null ? 'Streak, not known yet' : `Streak, ${streak} days.${streakOld ? ' Last known, it may be old.' : ''}`}
         onPress={() => router.push('/streak')}
       >
-        <Flame size={22} color={streakOld ? colors.soft : colors.rare} />
-        <Words kind="heading" style={styles.tabular}>
+        <LiveFlame size={22} streak={streak} old={streakOld} />
+        <Words kind="heading" style={{ color: ink }}>
           {streak ?? '–'}
         </Words>
         {streak !== null && streakOld && (
-          <Words kind="soft" numberOfLines={1} maxFontSizeMultiplier={1.1} style={styles.small}>
+          <Words kind="soft" numberOfLines={1} maxFontSizeMultiplier={1.1} style={[styles.small, { color: soft }]}>
             last known
           </Words>
         )}
       </Pressable>
-      <View style={styles.tag}>
-        <Words kind="soft" maxFontSizeMultiplier={1.1} style={styles.tagText}>
+      <View style={[styles.tag, dark && { borderColor: stage.line }]}>
+        <Words kind="soft" maxFontSizeMultiplier={1.1} style={[styles.tagText, { color: soft }]}>
           Test app
         </Words>
       </View>
@@ -111,7 +132,7 @@ function Header({ engine, snapshot }: { engine: Engine; snapshot: Snapshot }) {
         onPress={() => router.push('/account')}
         style={({ pressed }) => [styles.account, pressed && { opacity: 0.6 }]}
       >
-        <Icon name="person" size={24} weight={2} />
+        <Icon name="person" size={24} weight={2} color={ink} />
       </Pressable>
     </View>
   );
@@ -133,9 +154,7 @@ function Line({ engine, snapshot, view }: { engine: Engine; snapshot: Snapshot; 
     case 'full':
       return (
         <View style={[styles.banner, styles.notice]} accessibilityLiveRegion="polite">
-          <Words style={styles.noticeText}>
-            This phone can't save right now. It may be out of space. Free some and come back, or what you do now could be lost.
-          </Words>
+          <Words style={styles.noticeText}>This phone can't save right now. It may be out of space. Free some and come back, or what you do now could be lost.</Words>
         </View>
       );
     case 'notice':
@@ -147,7 +166,7 @@ function Line({ engine, snapshot, view }: { engine: Engine; snapshot: Snapshot; 
           style={[styles.banner, styles.notice]}
         >
           <Words style={styles.noticeText}>{banner.text}</Words>
-          <Icon name="cross" size={18} color={colors.onLabel} />
+          <Icon name="cross" size={18} color={colors.soft} />
         </Pressable>
       );
     case 'payment':
@@ -155,9 +174,9 @@ function Line({ engine, snapshot, view }: { engine: Engine; snapshot: Snapshot; 
       const text = banner.kind === 'winBack' ? `Your ${banner.lostStreak} day streak broke. Win it back` : PAYMENT[banner.state];
       return (
         <Pressable accessibilityRole="button" accessibilityLabel={text} onPress={() => router.push('/streak')} style={[styles.banner, styles.notice]}>
-          {banner.kind === 'payment' && banner.state === 'checking' && <ActivityIndicator color={colors.onLabel} />}
+          {banner.kind === 'payment' && banner.state === 'checking' && <ActivityIndicator color={colors.ink} />}
           <Words style={[styles.noticeText, styles.grow]}>{text}</Words>
-          <Icon name="right" size={18} color={colors.onLabel} />
+          <Icon name="right" size={18} color={colors.soft} />
         </Pressable>
       );
     }
@@ -173,7 +192,7 @@ function Line({ engine, snapshot, view }: { engine: Engine; snapshot: Snapshot; 
       return (
         <Pressable accessibilityRole="button" onPress={() => engine.showReveal(banner.challengeId)} style={[styles.banner, styles.notice]}>
           <Words style={styles.noticeText}>You have a card waiting. See it now</Words>
-          <Icon name="right" size={18} color={colors.onLabel} />
+          <Icon name="right" size={18} color={colors.soft} />
         </Pressable>
       );
     case 'offline':
@@ -214,9 +233,7 @@ function Empty({ engine, snapshot }: { engine: Engine; snapshot: Snapshot }) {
         {snapshot.connection === 'offline' ? "Connect to get today's challenge" : "Today's challenge isn't loading"}
       </Words>
       <Words kind="soft" style={styles.centre}>
-        {snapshot.connection === 'offline'
-          ? 'After that you can play today and tomorrow without a connection.'
-          : 'Pullday is having trouble. Try again in a moment.'}
+        {snapshot.connection === 'offline' ? 'After that you can play today and tomorrow without a connection.' : 'Pullday is having trouble. Try again in a moment.'}
       </Words>
       <View style={styles.wide}>
         <Button title="Try again" onPress={() => void engine.sync()} />
@@ -226,19 +243,29 @@ function Empty({ engine, snapshot }: { engine: Engine; snapshot: Snapshot }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.mat },
+  screen: { flex: 1, backgroundColor: colors.page },
+  fill: { flex: 1 },
+  dark: { backgroundColor: stage.page },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.l, height: 48 },
   streak: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 64 },
-  tabular: { fontVariant: ['tabular-nums'] },
-  tag: { borderRadius: 6, backgroundColor: colors.deep, paddingHorizontal: 10, paddingVertical: 3 },
+  tag: { borderRadius: 9, borderWidth: hairline, borderColor: '#C9C9C9', paddingHorizontal: 10, paddingVertical: 3 },
   small: { fontSize: 13, lineHeight: 18 },
   tagText: { fontSize: 13, lineHeight: 18 },
   account: { minWidth: 64, alignItems: 'flex-end' },
-  banner: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginHorizontal: space.l, marginBottom: space.s, paddingHorizontal: space.m, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.deep },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.s,
+    marginHorizontal: space.l,
+    marginBottom: space.s,
+    paddingHorizontal: space.m,
+    paddingVertical: 10,
+    borderRadius: 14,
+  },
   bannerText: { flexShrink: 1 },
-  notice: { backgroundColor: colors.label, justifyContent: 'space-between' },
+  notice: { ...panel, borderRadius: 14, paddingVertical: 13, justifyContent: 'space-between' },
   grow: { flex: 1 },
-  noticeText: { color: colors.onLabel, flexShrink: 1, fontSize: 15, lineHeight: 20 },
+  noticeText: { flexShrink: 1, fontSize: 15, lineHeight: 20 },
   middle: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.m, paddingHorizontal: space.xl },
   centre: { textAlign: 'center' },
   wide: { alignSelf: 'stretch', marginTop: space.m },

@@ -1,15 +1,18 @@
 import { NativeTabs } from 'expo-router/native-tabs';
-import { colors } from '../../ui/theme';
+import { useStage } from '../../lib/stage';
+import { colors, stage } from '../../ui/theme';
 
 export default function Tabs() {
+  const dark = useStage();
+  const { ink, soft } = dark ? stage : colors;
   return (
     <NativeTabs
-      backgroundColor={colors.deep}
-      tintColor={colors.ink}
-      indicatorColor={colors.raised}
-      rippleColor="#FFFFFF22"
-      iconColor={{ default: colors.soft, selected: colors.ink }}
-      labelStyle={{ default: { color: colors.soft }, selected: { color: colors.ink } }}
+      backgroundColor={dark ? stage.page : colors.panel}
+      tintColor={ink}
+      indicatorColor={dark ? stage.panel : '#EDEDED'}
+      rippleColor={dark ? '#FFFFFF22' : '#00000012'}
+      iconColor={{ default: soft, selected: ink }}
+      labelStyle={{ default: { color: soft }, selected: { color: ink } }}
     >
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Today</NativeTabs.Trigger.Label>

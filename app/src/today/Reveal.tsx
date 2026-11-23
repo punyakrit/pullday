@@ -27,7 +27,8 @@ import { Button } from '../ui/Button';
 import { CardText, describeCard } from '../ui/CardImage';
 import { Icon, Shape } from '../ui/Icons';
 import { Words } from '../ui/Words';
-import { CARD_RATIO, colors, rarityColor, rarityName, space } from '../ui/theme';
+import { hairline } from '../ui/hairline';
+import { CARD_RATIO, rarityBright, rarityName, space, stage as dark } from '../ui/theme';
 import { Rays, Sheen, Sparks } from './Effects';
 import { cardWidth, isShort } from './fit';
 import { liftSpeed } from './swipe';
@@ -235,15 +236,16 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
   if (card === null) {
     return (
       <View style={[styles.screen, styles.middle]}>
-        <Shape rarity="holo" size={72} />
+        <Shape rarity="holo" size={72} bright />
         <Words kind="title" style={styles.centre}>
           You own every card
         </Words>
-        <Words kind="soft" style={styles.centre}>
+        <Words kind="soft" style={styles.quiet}>
           There is nothing left to pull. Today still counts for your streak.
         </Words>
         <Button
           title="Done"
+          kind="light"
           onPress={() => {
             onShown();
             onClose();
@@ -267,7 +269,7 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
         <Words kind={short ? 'label' : 'title'} style={styles.centre} numberOfLines={short ? 1 : undefined} accessibilityRole="header">
           {says.title}
         </Words>
-        <Words kind="soft" style={styles.centre}>
+        <Words kind="soft" style={styles.quiet}>
           {says.line}
         </Words>
       </Animated.View>
@@ -295,21 +297,21 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
           {stage !== 'open' && (
             <View pointerEvents="none" style={{ position: 'absolute', width: width + 18, height }}>
               <Animated.View style={[styles.sleeve, { top: height * 0.4, height: height * 0.63 }, sleeveStyle]}>
-                <Words kind="title" style={{ color: colors.deep }} maxFontSizeMultiplier={1}>
+                <Words kind="title" style={styles.onSleeve} maxFontSizeMultiplier={1}>
                   Pullday
                 </Words>
-                <Words kind="label" style={{ color: colors.deep }} maxFontSizeMultiplier={1}>
+                <Words kind="label" style={styles.onSleeve} maxFontSizeMultiplier={1}>
                   {dayName(reveal.day)}
                 </Words>
                 <View style={styles.sleeveShapes}>
-                  <Shape rarity="common" size={18} color="#8FA5A0" />
-                  <Shape rarity="holo" size={18} color="#8FA5A0" />
-                  <Shape rarity="rare" size={18} color="#8FA5A0" />
+                  <Shape rarity="common" size={18} color="#9A9A9A" />
+                  <Shape rarity="holo" size={18} color="#9A9A9A" />
+                  <Shape rarity="rare" size={18} color="#9A9A9A" />
                 </View>
               </Animated.View>
             </View>
           )}
-          {stage === 'pulled' && !ready && <ActivityIndicator color={colors.ink} style={styles.spinner} />}
+          {stage === 'pulled' && !ready && <ActivityIndicator color={dark.ink} style={styles.spinner} />}
         </View>
       </GestureDetector>
 
@@ -317,28 +319,28 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
         {stage === 'open' ? (
           <>
             <View style={styles.name}>
-              <Shape rarity={card.rarity} size={22} />
-              <Words kind="heading" numberOfLines={short ? 1 : 2} style={{ flexShrink: 1 }}>
+              <Shape rarity={card.rarity} size={22} bright />
+              <Words kind="heading" numberOfLines={short ? 1 : 2} style={{ flexShrink: 1, color: dark.ink }}>
                 {card.name}
               </Words>
             </View>
-            <Words kind="soft" style={styles.centre} numberOfLines={2}>
-              <Words kind="soft" style={{ color: rarityColor[card.rarity] }}>
+            <Words kind="soft" style={styles.quiet} numberOfLines={2}>
+              <Words kind="soft" style={{ color: rarityBright[card.rarity] }}>
                 {rarityName[card.rarity]}
               </Words>
               , {card.set}, {card.year}
             </Words>
-            <Button title="Done" onPress={onClose} />
+            <Button title="Done" kind="light" onPress={onClose} />
           </>
         ) : (
           <>
             <View style={styles.name}>
-              <Icon name="up" size={20} color={colors.soft} />
-              <Words kind="label" style={{ color: colors.soft }}>
+              <Icon name="up" size={20} color={dark.soft} />
+              <Words kind="label" style={{ color: dark.soft }}>
                 Pull the card up
               </Words>
             </View>
-            <Button title="Pull it for me" kind="quiet" onPress={letGo} disabled={stage !== 'sealed'} />
+            <Button title="Pull it for me" kind="dark" onPress={letGo} disabled={stage !== 'sealed'} />
           </>
         )}
       </View>
@@ -351,9 +353,9 @@ function Back({ width, height }: { width: number; height: number }) {
   return (
     <View style={[styles.back, { width, height, borderRadius: width * 0.05 }]}>
       <View style={[styles.backInner, { borderRadius: width * 0.035 }]}>
-        <Shape rarity="common" size={width * 0.16} color={colors.line} />
-        <Shape rarity="holo" size={width * 0.34} color={colors.line} />
-        <Shape rarity="rare" size={width * 0.16} color={colors.line} />
+        <Shape rarity="common" size={width * 0.16} color={dark.line} />
+        <Shape rarity="holo" size={width * 0.34} color={dark.line} />
+        <Shape rarity="rare" size={width * 0.16} color={dark.line} />
       </View>
     </View>
   );
@@ -362,17 +364,19 @@ function Back({ width, height }: { width: number; height: number }) {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   middle: { alignItems: 'center', justifyContent: 'center', gap: space.l, paddingHorizontal: space.xl },
-  centre: { textAlign: 'center' },
+  centre: { textAlign: 'center', color: dark.ink },
+  quiet: { textAlign: 'center', color: dark.soft },
+  onSleeve: { color: '#1A1A1A' },
   top: { paddingTop: space.m, paddingHorizontal: space.l, gap: 2, zIndex: 1 },
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   // A short window: the card on the left, everything that is written on the right.
   topBeside: { position: 'absolute', right: 0, top: 0, paddingHorizontal: space.m, paddingTop: space.s },
   bottomBeside: { position: 'absolute', right: 0, bottom: 0, paddingHorizontal: space.m, paddingBottom: space.s, minHeight: 0 },
-  sleeve: { position: 'absolute', left: 0, right: 0, backgroundColor: '#F3F6F3', borderWidth: 6, borderColor: '#D7382F', borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  sleeve: { position: 'absolute', left: 0, right: 0, backgroundColor: '#FFFFFF', borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   sleeveShapes: { flexDirection: 'row', gap: 8, marginTop: space.m },
   spinner: { position: 'absolute' },
   bottom: { zIndex: 1, paddingHorizontal: space.xl, paddingBottom: space.l, gap: space.s, minHeight: 150, justifyContent: 'flex-end' },
   name: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s },
-  back: { backgroundColor: colors.deep, padding: 10 },
-  backInner: { flex: 1, borderWidth: 2, borderColor: colors.line, backgroundColor: colors.raised, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  back: { backgroundColor: '#1E1E1E', borderWidth: hairline, borderColor: dark.line, padding: 10 },
+  backInner: { flex: 1, borderWidth: 2, borderColor: dark.line, backgroundColor: dark.panel, alignItems: 'center', justifyContent: 'center', gap: 10 },
 });
