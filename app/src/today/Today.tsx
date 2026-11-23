@@ -3,6 +3,7 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-
 import { router } from 'expo-router';
 import { useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { bannerFor } from '../core/banner';
 import type { Engine, Snapshot } from '../core/engine';
 import { GRACE_MS, type View as DayView } from '../core/state';
 import type { Rarity } from '../core/types';
@@ -53,7 +54,7 @@ export function Today({ engine }: { engine: Engine }) {
   return (
     <SafeAreaView edges={EDGES} style={styles.screen}>
       <Header engine={engine} snapshot={snapshot} />
-      <Banner engine={engine} snapshot={snapshot} view={view} />
+      <Line engine={engine} snapshot={snapshot} view={view} />
       {view.kind === 'challenge' && <Challenge key={view.challenge.id} engine={engine} view={view} />}
       {view.kind === 'reveal' && <RevealOf key={view.reveal.challengeId} engine={engine} snapshot={snapshot} view={view} />}
       {view.kind === 'done' && <Done engine={engine} snapshot={snapshot} view={view} />}
@@ -109,70 +110,65 @@ function Header({ engine, snapshot }: { engine: Engine; snapshot: Snapshot }) {
   );
 }
 
-/** One line at a time, the most useful first. */
-function Banner({ engine, snapshot, view }: { engine: Engine; snapshot: Snapshot; view: DayView }) {
+function Line({ engine, snapshot, view }: { engine: Engine; snapshot: Snapshot; view: DayView }) {
   const now = useServerNow(engine, 1_000);
-  const notice = snapshot.saved.notices[0];
-  if (notice) {
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${notice.text} Tap to dismiss.`}
-        onPress={() => engine.dismissNotice(notice.id)}
-        style={[styles.banner, styles.notice]}
-      >
-        <Words style={styles.noticeText}>{notice.text}</Words>
-        <Icon name="cross" size={18} color={colors.onLabel} />
-      </Pressable>
-    );
+  const banner = bannerFor({ ...snapshot, view });
+  switch (banner?.kind) {
+    case 'full':
+      return (
+        <View style={[styles.banner, styles.notice]} accessibilityLiveRegion="polite">
+          <Words style={styles.noticeText}>
+            This phone can't save right now. It may be out of space. Free some and come back, or what you do now could be lost.
+          </Words>
+        </View>
+      );
+    case 'notice':
+      return (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${banner.text} Tap to dismiss.`}
+          onPress={() => engine.dismissNotice(banner.id)}
+          style={[styles.banner, styles.notice]}
+        >
+          <Words style={styles.noticeText}>{banner.text}</Words>
+          <Icon name="cross" size={18} color={colors.onLabel} />
+        </Pressable>
+      );
+    case 'late':
+      return (
+        <View style={styles.banner}>
+          <Words kind="soft" style={styles.bannerText}>
+            Finish the day you started. It still counts for another {countdown(Math.min(banner.until - now, GRACE_MS))}.
+          </Words>
+        </View>
+      );
+    case 'waiting':
+      return (
+        <Pressable accessibilityRole="button" onPress={() => engine.showReveal(banner.challengeId)} style={[styles.banner, styles.notice]}>
+          <Words style={styles.noticeText}>You have a card waiting. See it now</Words>
+          <Icon name="right" size={18} color={colors.onLabel} />
+        </Pressable>
+      );
+    case 'offline':
+      return (
+        <View style={styles.banner}>
+          <Icon name="offline" size={18} color={colors.soft} />
+          <Words kind="soft" style={styles.bannerText}>
+            {banner.unsent ? 'Offline. Your challenge is saved and will be sent.' : 'Offline. You can still play.'}
+          </Words>
+        </View>
+      );
+    case 'trouble':
+      return (
+        <View style={styles.banner}>
+          <Words kind="soft" style={styles.bannerText}>
+            Pullday is having trouble. {banner.unsent ? 'Your challenge is saved and will be sent.' : "We'll keep trying."}
+          </Words>
+        </View>
+      );
+    default:
+      return null;
   }
-  if (snapshot.unsaved) {
-    return (
-      <View style={[styles.banner, styles.notice]} accessibilityLiveRegion="polite">
-        <Words style={styles.noticeText}>
-          This phone can't save right now. It may be out of space. Free some and come back, or what you do now could be lost.
-        </Words>
-      </View>
-    );
-  }
-  if (view.kind === 'challenge' && view.lateUntil) {
-    return (
-      <View style={styles.banner}>
-        <Words kind="soft" style={styles.bannerText}>
-          Finish the day you started. It still counts for another {countdown(Math.min(view.lateUntil - now, GRACE_MS))}.
-        </Words>
-      </View>
-    );
-  }
-  if (view.kind === 'challenge' && view.waiting) {
-    const { challengeId } = view.waiting;
-    return (
-      <Pressable accessibilityRole="button" onPress={() => engine.showReveal(challengeId)} style={[styles.banner, styles.notice]}>
-        <Words style={styles.noticeText}>You have a card waiting. See it now</Words>
-        <Icon name="right" size={18} color={colors.onLabel} />
-      </Pressable>
-    );
-  }
-  if (snapshot.connection === 'offline') {
-    return (
-      <View style={styles.banner}>
-        <Icon name="offline" size={18} color={colors.soft} />
-        <Words kind="soft" style={styles.bannerText}>
-          {snapshot.unsent > 0 ? 'Offline. Your challenge is saved and will be sent.' : 'Offline. You can still play.'}
-        </Words>
-      </View>
-    );
-  }
-  if (snapshot.connection === 'trouble') {
-    return (
-      <View style={styles.banner}>
-        <Words kind="soft" style={styles.bannerText}>
-          Pullday is having trouble. {snapshot.unsent > 0 ? 'Your challenge is saved and will be sent.' : "We'll keep trying."}
-        </Words>
-      </View>
-    );
-  }
-  return null;
 }
 
 /** Nothing on the phone covers today: the first open, or three days with no connection. */

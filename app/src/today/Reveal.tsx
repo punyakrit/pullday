@@ -55,7 +55,7 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
   const { card, saved } = turned.drawn ?? reveal;
   const shown = useRef(false);
 
-  // Measured once, so a banner coming or going does not resize the card in the middle of it.
+  // Measured once, so that nothing which comes or goes resizes the card in the middle of it.
   const [stageHeight, setStageHeight] = useState(0);
   const width = stageHeight > 0 ? Math.floor(Math.min(window.width * 0.68, (stageHeight - 36) / CARD_RATIO)) : 0;
   const height = Math.floor(width * CARD_RATIO);
