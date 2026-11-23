@@ -1,6 +1,6 @@
 # Decisions
 
-Status: steps 1, 2 and 4 of 8 in `docs/PLAN.md`: the backend, the daily loop, and the collection with card details. **Nothing has been tested on a real phone yet.** Only on an Android emulator and an iOS simulator, with release builds. `brief.md` asks for a real phone, so this is open.
+Status: steps 1, 2, 4 and 5 of 8 in `docs/PLAN.md`: the backend, the daily loop, the collection with card details, and the streak with win back. **Nothing has been tested on a real phone yet.** Only on an Android emulator and an iOS simulator, with release builds. `brief.md` asks for a real phone, so this is open.
 
 ## What was built first, and why
 
@@ -20,19 +20,23 @@ Six of the nine bad reviews are about days, money or lost progress. Those are wr
 
 ## On the phone
 
-**The outbox is the promise.** Every swipe is saved while its card is still leaving the screen, and the finish is saved before anything is revealed, in one write. Sent in order: start, complete, reveal seen. Nothing else goes first. No streak is shown until it is empty. What is saved has a version, so an update can read it. A row that cannot be read is kept aside and said, never fatal. If the phone is out of space, play goes on in memory, the app says so, and no card is shown until the finish is on disk or with the server.
+**The outbox is the promise.** Every swipe is saved while its card is still leaving the screen, and the finish is saved before anything is revealed, in one write. Sent in order: start, complete, reveal seen. Nothing else goes first. Until it is empty the streak is the last known one, and says it may be old. What is saved has a version. A row that cannot be read is kept aside, never fatal. On a full phone play goes on in memory, and no card is shown until the finish is safe.
 
-**Swipes are decided on the UI thread.** One touch surface, never re-rendered during a challenge, moves whichever card is on top. A card in flight is never in the way. Distance counts, a flick counts, a flick back is a change of mind.
+**Swipes are decided on the UI thread.** One touch surface, never re-rendered, moves whichever card is on top. A card in flight is never in the way.
 
-**The reveal starts over until it was seen.** Marked as seen only after the card has been face up for a moment with the app in front. A call, the home button or a kill before that replays it. Once a card starts to turn it stays: a late reply changes the words, never the card.
+**The reveal starts over until it was seen.** A call, the home button or a kill before that replays it. Once a card starts to turn it stays.
 
-**The effects are cheap on purpose.** Gradients and transforms, no blur, no shadow, no particles made in JavaScript. The picture is decoded before the card may turn.
-
-**The collection shows all 1,993, yours in colour.** In binder order, with a switch to only yours. Small pictures on disk, grey ones made by the server. The name is under every picture, so a cell is never empty. It says "no picture" only if the server says so, and "couldn't load" otherwise, and then tries again.
+**The collection shows all 1,993, yours in colour.** Small pictures on disk, grey ones made by the server. The name is under every picture, so a cell is never empty. "No picture" and "couldn't load" are told apart, and the second is tried again.
 
 **Every read goes through one gate.** A card opened at 12:02am must not cost a day finished on a plane. A test fails if any other file talks to the server.
 
 **Only our own 401 logs out.** Hotel wifi, proxies, 5xx and no network never do.
+
+## Money
+
+**The server decides, and Stripe is the only one who knows.** One PaymentIntent for a break, with an idempotency key, so a double tap or two phones can only pay once. A webhook, a status check and a sweep all ask Stripe and then do the same thing, once. The app saves that a payment began before the sheet opens, and afterwards says "Checking your payment" until there is an answer. "Failed" and "no money was taken" only come from Stripe, "not paid" after it was asked more than once.
+
+**Begun inside the 48 hours counts whenever it ends.** An unpaid one is closed an hour after. What cannot be honoured is refunded: also when a late offline day fixed the streak after it was paid. The check never counts as contact. Beginning does, so it waits for the outbox.
 
 ## Where instructions and brief.md pulled apart
 
@@ -40,7 +44,7 @@ Binder screens wait, but `collector@` must have 5 pages, so the table and seed e
 
 ## Cut or not built yet
 
-Streak screen, win back, shop, binder (the planned cut). No search. No password reset, email check, rate limit or session expiry.
+Shop, binder (the planned cut). No search. No password reset, email check, rate limit or session expiry.
 
 ## Known limits and what is still broken
 
@@ -51,4 +55,5 @@ Streak screen, win back, shop, binder (the planned cut). No search. No password 
 - Offline, the phone chooses the day from its own clock. Moved forward it shows tomorrow, the server refuses it, and the app says so.
 - A 1080 picture is made when first asked for, which can take 20 seconds. The reveal waits 5, then uses the 400.
 - After a trip shorter than 7 days you cannot move your zone straight back.
-- A won back day that turns out to have been done offline becomes done, but the $4.99 is not handled.
+- Money: no webhook from the real Stripe was ever received, only the fake's. A refund that fails is tried every minute, and nobody is told. If a freeze comes back after a win back was paid, the person keeps both. Resetting a test account in the middle of a payment leaves it open at Stripe.
+- Small, seen in step 5: closing the sheet takes about 6 seconds to say "Not paid". After a decline and then a cancel it still says the decline. A "Paid" notice from before a reset by script stays until dismissed. The 3D Secure page shows the name of the Stripe account. The sheet's error red is dim on our dark green. Killing from the dev menu is a real crash.

@@ -8,11 +8,21 @@ Step 0 and 1, all of it: the plan, the backend code, SQL, seeds, scripts, tests 
 
 AI also checked the data (1,993 cards, 66 with no number, 799 with no variety, prices end 2026-11-02), probed every image link (27 broken, largest 14.4 MB, some with the wrong content type) and read the current docs for Fastify, sharp, node-postgres and node:test before using them.
 
+Step 5, all of it: payments on the server, the fake Stripe, the streak screen, the sheet and the dev menu. The owner set the rules for money, and filled in the keys. AI only checked that they were test keys, and never saw them.
+
 Step 4, all of it: the collection, card details, chart, their tests and the measurements. The owner asked for the rules that matter: why a picture failed, and the one gate.
 
 Step 2, all of it: the app (Expo SDK 58), its tests, the icons, the image warming script and the Dockerfile. The owner chose the loop, the rules for the outbox and what the dev menu must do. AI chose the look. The Gesture Handler docs did not load, so its version 3 API was read from the installed type files.
 
 ## Where AI was wrong
+
+On payments (step 5):
+
+- **The first version could have made two payments for one break**, if the phone named another missed day of the same run. Found rereading, before the tests.
+- **"Closed by hand" was taken as proof that nothing was charged.** After a connection error in the sheet it proves nothing. Now Stripe is asked again.
+- **Stripe's words for programmers reached the screen** when a bank refused. Seen on the emulator.
+- **The Android release build broke twice** on a part of Stripe's SDK that we do not use.
+- **AI took a killed app for a crash.** The emulator's Play Store was updating WebView. It became the first real test of a kill while paying.
 
 On the phone (step 4):
 
