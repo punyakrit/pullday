@@ -1,6 +1,6 @@
 import { CARDS, type Saved } from './state';
 import type { OwnedCard } from './engine';
-import type { Card, Challenge, Storage, Today } from './types';
+import type { Card, Challenge, Storage, Today, User } from './types';
 
 /**
  * One kind of row on the phone. Its version is how many upgrades it has.
@@ -115,3 +115,22 @@ export const CLOCK: Kind<{ offset: number; floor: number }> = {
   upgrades: [same],
   check: (value): value is { offset: number; floor: number } => isObject(value) && isNumber(value.offset) && isNumber(value.floor),
 };
+
+export type Login = { token: string; user: User };
+
+/**
+ * The login kept in the secure store, if it is still this install's. iOS keeps that store when an app
+ * is deleted, so a login can be there with nothing else. The device id is made at the first log in
+ * and goes with the app: without it, the login is from an app that was deleted.
+ */
+export function readLogin(text: string | null, device: string | null): Login | null {
+  if (text === null || device === null) return null;
+  try {
+    const login: unknown = JSON.parse(text);
+    if (!isObject(login) || !isText(login.token) || !isObject(login.user)) return null;
+    const { id, email } = login.user;
+    return isText(id) && isText(email) ? (login as Login) : null;
+  } catch {
+    return null;
+  }
+}

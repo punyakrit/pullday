@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { CATALOGUE, CLOCK, type Kind, OWNED, SAVED, TODAY, readRow, writeRow } from '../src/core/rows';
+import { CATALOGUE, CLOCK, type Kind, OWNED, SAVED, TODAY, readLogin, readRow, writeRow } from '../src/core/rows';
 import { emptySaved } from '../src/core/state';
-import { HOUR, MemoryStorage, World, card, challenge, playAll, settle } from './fakes';
+import { HOUR, MemoryStorage, USER, World, card, challenge, playAll, settle } from './fakes';
 
 const KEY = 'user:u1:saved';
 const ASIDE = `${KEY}:aside`;
@@ -141,6 +141,24 @@ describe('a row that cannot be used', () => {
     assert.equal(world.storage.get(ASIDE), 'damaged');
     engine.forget();
     assert.deepEqual([...world.storage.rows.keys()], []);
+  });
+});
+
+describe('the kept login', () => {
+  const kept = JSON.stringify({ token: 't', user: USER });
+
+  test('after a restart or an update it is still there', () => {
+    assert.deepEqual(readLogin(kept, 'device-1'), { token: 't', user: USER });
+  });
+
+  test('the app was deleted and installed again: the login that stayed behind does not count', () => {
+    assert.equal(readLogin(kept, null), null);
+  });
+
+  test('never logged in, or damaged', () => {
+    for (const text of [null, '', '{', 'null', '[]', '{"token":"t"}', '{"token":1,"user":{}}', '{"token":"t","user":{"id":"a"}}']) {
+      assert.equal(readLogin(text, 'device-1'), null);
+    }
   });
 });
 

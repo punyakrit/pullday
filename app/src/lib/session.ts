@@ -5,6 +5,7 @@ import { useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import { Api, Refused, Unreachable } from '../core/api';
 import { Engine } from '../core/engine';
+import { readLogin } from '../core/rows';
 import type { User } from '../core/types';
 import { API_URL, TEST_ACCOUNTS } from './config';
 import { prefetchBundle } from './images';
@@ -17,6 +18,7 @@ export type Session =
 
 const KEY = 'session';
 const LAST_EMAIL = 'last-email';
+const DEVICE = 'device';
 export const api = new Api({ baseUrl: API_URL, fetch: (...args) => fetch(...args), now: Date.now });
 
 let session: Session = { status: 'loading' };
@@ -38,10 +40,10 @@ export function useSession(): Session {
 
 /** Made once per install. The server uses it to know this phone from another. */
 function deviceId(): string {
-  const saved = storage.get('device');
+  const saved = storage.get(DEVICE);
   if (saved) return saved;
   const made = Crypto.randomUUID();
-  storage.set('device', made);
+  storage.set(DEVICE, made);
   return made;
 }
 
@@ -70,12 +72,10 @@ async function leave(message: string | null): Promise<void> {
 /** Once, when the app opens. Works with no connection. */
 export async function restore(): Promise<void> {
   try {
-    const saved = await SecureStore.getItemAsync(KEY);
-    if (saved) {
-      const { token, user } = JSON.parse(saved) as { token: string; user: User };
-      enter(user, token);
-      return;
-    }
+    const text = await SecureStore.getItemAsync(KEY);
+    const login = readLogin(text, storage.get(DEVICE));
+    if (login) return enter(login.user, login.token);
+    if (text !== null) await SecureStore.deleteItemAsync(KEY);
     set({ status: 'out', email: storage.get(LAST_EMAIL) ?? '', message: null });
   } catch {
     set({ status: 'out', email: storage.get(LAST_EMAIL) ?? '', message: 'This phone could not read your saved login. Log in again.' });
