@@ -20,7 +20,7 @@ Six of the nine bad reviews are about days, money or lost progress. Those are wr
 
 ## On the phone
 
-**The outbox is the promise.** Every swipe is saved before it animates away, and the finish is saved before anything is revealed, in one write. Sent in order: start, complete, reveal seen. Nothing else goes first. No streak is shown until it is empty.
+**The outbox is the promise.** Every swipe is saved while its card is still leaving the screen, and the finish is saved before anything is revealed, in one write. Sent in order: start, complete, reveal seen. Nothing else goes first. No streak is shown until it is empty.
 
 **Swipes are decided on the UI thread.** One touch surface, never re-rendered during a challenge, moves whichever card is on top. A card in flight is never in the way. Distance counts, a flick counts, a flick back is a change of mind.
 
