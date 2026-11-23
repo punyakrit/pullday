@@ -20,9 +20,18 @@ const { setRealClock } = await import('../src/time.ts');
 const { transaction } = await import('../src/db.ts');
 const { lockUser } = await import('../src/auth.ts');
 const streakModule = await import('../src/streak.ts');
+const { TEST_EMAILS } = await import('../src/auth.ts');
+const { resetAccount, seedAll } = await import('../src/seed.ts');
+
+// Tests empty the users table. If a test file imports anything from src/ that opens the
+// database, it can be loaded before the address above is set. Never go on if that happened.
+const connected = await pool.query<{ name: string }>('select current_database() as name');
+if (connected.rows[0]?.name !== 'pullday_test') {
+  throw new Error(`tests are connected to ${connected.rows[0]?.name}: import src/ through test/helpers.ts`);
+}
 await migrate();
 
-export { pool, buildApp };
+export { TEST_EMAILS, buildApp, pool, resetAccount, seedAll };
 export const app = buildApp({ devTools: true });
 
 let clock = Date.parse('2026-11-23T12:00:00Z');

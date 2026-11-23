@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, beforeEach, describe, test } from 'node:test';
-import { TEST_EMAILS } from '../src/auth.ts';
-import { resetAccount, seedAll } from '../src/seed.ts';
-import { Phone, advance, buildApp, clean, close, HOUR, pool, setClock } from './helpers.ts';
+import { HOUR, Phone, TEST_EMAILS, advance, buildApp, clean, close, pool, resetAccount, seedAll, setClock } from './helpers.ts';
 
 beforeEach(() => clean());
 after(close);
