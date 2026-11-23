@@ -4,7 +4,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, View, useWindowDimensions } 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ownedNow } from '../../core/collection';
 import type { Engine } from '../../core/engine';
-import { dateText, money } from '../../core/prices';
+import { dayOf } from '../../core/prices';
 import type { Card } from '../../core/types';
 import { cardOnPhone } from '../../lib/catalogue';
 import { useSession } from '../../lib/session';
@@ -13,6 +13,7 @@ import { useEngine } from '../../lib/useEngine';
 import { Button } from '../../ui/Button';
 import { CardImage, describeCard } from '../../ui/CardImage';
 import { Shape } from '../../ui/Icons';
+import { PriceChart } from '../../ui/PriceChart';
 import { Words } from '../../ui/Words';
 import { CARD_RATIO, colors, rarityColor, rarityName, space } from '../../ui/theme';
 
@@ -49,7 +50,7 @@ function CardDetails({ engine, id }: { engine: Engine; id: string }) {
             <Words kind="soft" style={{ color: rarityColor[card.rarity] }}>
               {rarityName[card.rarity]}
             </Words>
-            {mine === null ? '. Not yours yet' : mine.acquiredAt ? `. Yours since ${dateText(mine.acquiredAt)}` : '. Yours'}
+            {mine === null ? '. Not yours yet' : mine.acquiredAt ? `. Yours since ${dayOf(mine.acquiredAt, snapshot.today?.timezone)}` : '. Yours'}
           </Words>
           <More engine={engine} card={card} />
         </>
@@ -92,10 +93,7 @@ function More({ engine, card }: { engine: Engine; card: Card }) {
       {shown ? (
         <>
           <Section title="Price">
-            <Words kind="title" style={styles.tabular}>
-              {money(shown.priceCents)}
-            </Words>
-            {shown.priceDate && <Words kind="soft">On {dateText(shown.priceDate)}. Test data, not a real price.</Words>}
+            <PriceChart priceCents={shown.priceCents} priceDate={shown.priceDate} history={shown.priceHistory} />
           </Section>
           <Section title="Story">
             <Words>{shown.story}</Words>
@@ -180,8 +178,7 @@ const styles = StyleSheet.create({
   line: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
   factName: { minWidth: 84 },
   factValue: { flexShrink: 1, textAlign: 'right' },
-  section: { gap: space.xs, marginTop: space.m },
+  section: { gap: space.s, marginTop: space.m },
   waiting: { minHeight: 180, alignItems: 'center', justifyContent: 'center', gap: space.m },
   wide: { alignSelf: 'stretch' },
-  tabular: { fontVariant: ['tabular-nums'] },
 });
