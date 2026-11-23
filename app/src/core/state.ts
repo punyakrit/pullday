@@ -109,11 +109,9 @@ export function findReveal(saved: Saved, today: Today | null, challengeId: strin
 }
 
 /** The one place that decides what Today shows. */
-export function whatToShow(saved: Saved, today: Today | null, now: number, openReveal: string | null): View {
-  if (openReveal) {
-    const reveal = findReveal(saved, today, openReveal);
-    if (reveal) return { kind: 'reveal', reveal };
-  }
+export function whatToShow(saved: Saved, today: Today | null, now: number, open: Reveal | null): View {
+  // The newest word on it. The server stops listing a waiting card once it was seen, and it is still open here.
+  if (open) return { kind: 'reveal', reveal: findReveal(saved, today, open.challengeId) ?? open };
   const waiting = pendingReveals(saved, today);
 
   // Yesterday's, if it was begun in time. Also one the server knows was begun, on another phone.

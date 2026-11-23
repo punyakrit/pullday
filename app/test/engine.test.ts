@@ -508,6 +508,50 @@ describe('reveals from before', () => {
     assert.ok(world.calls.includes('POST /challenges/ch-2026-11-22/reveal-seen'));
   });
 
+  const waitingCard = { challengeId: 'ch-2026-11-22', day: '2026-11-22', acquiredAt: '', card: card('old') };
+
+  test('a waiting card that is open stays open when the server stops listing it, until it is closed', async () => {
+    const { world, engine } = await opened('2026-11-23T12:00:00Z');
+    world.normal({ unseenReveals: [waitingCard] });
+    await engine.sync();
+    engine.showReveal('ch-2026-11-22');
+    engine.revealShown('ch-2026-11-22');
+    await settle();
+    world.normal(); // seen, so it is no longer waiting
+    await engine.sync();
+    const { view: shown } = engine.getSnapshot();
+    assert.ok(shown.kind === 'reveal' && shown.reveal.card?.id === 'old' && shown.reveal.saved);
+
+    engine.closeReveal();
+    assert.equal(view(engine), 'challenge');
+    await settle();
+    assert.equal(view(engine), 'challenge');
+    assert.equal(view(world.open()), 'challenge'); // and it does not come back
+  });
+
+  test('a waiting card seen on another phone while it is open here: kept until it is closed', async () => {
+    const { world, engine } = await opened('2026-11-23T12:00:00Z');
+    world.normal({ unseenReveals: [waitingCard] });
+    await engine.sync();
+    engine.showReveal('ch-2026-11-22');
+    world.normal();
+    await engine.sync();
+    assert.equal(view(engine), 'reveal');
+    engine.closeReveal();
+    assert.equal(view(engine), 'challenge');
+  });
+
+  test('the open card is let go when the account starts over', async () => {
+    const { world, engine } = await opened('2026-11-23T12:00:00Z');
+    world.normal({ unseenReveals: [waitingCard] });
+    await engine.sync();
+    engine.showReveal('ch-2026-11-22');
+    world.normal();
+    engine.forget();
+    await engine.sync();
+    assert.equal(view(engine), 'challenge');
+  });
+
   test('owning every card: a reveal with no card', async () => {
     const world = new World('2026-11-23T12:00:00Z');
     world.normal({ challenge: challenge('2026-11-23', { reward: null }) });

@@ -5,6 +5,7 @@ import {
   OFFLINE_MS,
   type OutboxItem,
   type Play,
+  type Reveal,
   type Saved,
   type View,
   emptySaved,
@@ -58,7 +59,8 @@ export class Engine {
   private saved: Saved;
   private today: Today | null;
   private owned: OwnedCard[] | null;
-  private openReveal: string | null = null;
+  /** On screen until it is closed. Kept whole, so that nothing the server lists or stops listing can take it away. */
+  private openReveal: Reveal | null = null;
   private connection: Connection = 'unknown';
   private syncing = false;
   private snapshot: Snapshot;
@@ -124,7 +126,7 @@ export class Engine {
     if (play.answers.length === CARDS) {
       // The finish is in the outbox before anything is revealed.
       this.queue({ kind: 'complete', challengeId: challenge.id, endsAt: Date.parse(challenge.endsAt), answers: play.answers });
-      this.openReveal = challenge.id;
+      this.openReveal = findReveal(this.saved, this.today, challenge.id);
     }
     this.save();
     if (isFinished(play)) void this.flush();
@@ -140,14 +142,15 @@ export class Engine {
       challengeId,
       endsAt: challenge ? Date.parse(challenge.endsAt) : this.clock.now(),
     });
-    this.openReveal = challengeId; // stays on screen until it is closed
+    this.openReveal = findReveal(this.saved, this.today, challengeId) ?? this.openReveal;
     this.save();
     void this.flush();
   }
 
   showReveal(challengeId: string): void {
-    if (this.openReveal === challengeId || !findReveal(this.saved, this.today, challengeId)) return;
-    this.openReveal = challengeId;
+    const reveal = this.openReveal?.challengeId === challengeId ? null : findReveal(this.saved, this.today, challengeId);
+    if (!reveal) return;
+    this.openReveal = reveal;
     this.publish();
   }
 
@@ -221,7 +224,7 @@ export class Engine {
   private refused(item: OutboxItem, err: Refused): void {
     if (item.kind !== 'complete') return;
     delete this.saved.plays[item.challengeId];
-    if (this.openReveal === item.challengeId) this.openReveal = null;
+    if (this.openReveal?.challengeId === item.challengeId) this.openReveal = null;
     const wasShown = this.saved.seen[item.challengeId] === true;
     delete this.saved.seen[item.challengeId];
     if (err.code === 'too_late') {
@@ -301,7 +304,7 @@ export class Engine {
       const old = Date.parse(play.challenge.endsAt) + OFFLINE_MS < now;
       // The account was reset: another challenge is now the one for that day.
       const replaced = !current && known.some((challenge) => challenge?.day === play.challenge.day);
-      if (id !== this.openReveal && !unsent.has(id) && (doneElsewhere || old || replaced)) delete this.saved.plays[id];
+      if (id !== this.openReveal?.challengeId && !unsent.has(id) && (doneElsewhere || old || replaced)) delete this.saved.plays[id];
     }
     const keep = new Set([...Object.keys(this.saved.plays), ...unsent, ...today.unseenReveals.map((one) => one.challengeId)]);
     for (const id of Object.keys(this.saved.seen)) if (!keep.has(id)) delete this.saved.seen[id];
