@@ -115,7 +115,7 @@ test('redirects are followed', async () => {
 test('the large picture of the reward is made when its challenge is handed out', async () => {
   const phone = await Phone.signUp();
   const asked = new Set<string>();
-  const dir = `${cacheDir}/rewards`;
+  const dir = `${cacheDir}-rewards`;
   const server = buildApp({
     devTools: false,
     prepareRewards: true,
@@ -132,6 +132,7 @@ test('the large picture of the reward is made when its challenge is handed out',
   await new Promise((r) => setTimeout(r, 100));
   assert.deepEqual([...asked], []); // once
   await server.close();
+  await rm(dir, { recursive: true });
 });
 
 test('ten requests at once make one download', async () => {
