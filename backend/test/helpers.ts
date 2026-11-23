@@ -11,9 +11,17 @@ const testUrl = new URL(base);
 testUrl.pathname = '/pullday_test';
 const admin = new pg.Client({ connectionString: base });
 await admin.connect();
+
+// Tests share one database and empty it, so one test file at a time, across every run on this
+// computer. The lock belongs to this connection: a run that is killed lets go of it.
+const free = await admin.query<{ ok: boolean }>(`select pg_try_advisory_lock(hashtext('pullday_tests')) as ok`);
+if (!free.rows[0]?.ok) {
+  console.error('waiting for another test run to finish a file');
+  await admin.query(`select pg_advisory_lock(hashtext('pullday_tests'))`);
+}
+
 const exists = await admin.query(`select 1 from pg_database where datname = 'pullday_test'`);
 if (!exists.rowCount) await admin.query('create database pullday_test');
-await admin.end();
 process.env.DATABASE_URL = testUrl.href;
 
 // Imported after the address is set.
@@ -56,6 +64,7 @@ export async function clean(iso = '2026-11-23T12:00:00Z') {
 export async function close() {
   await app.close();
   await pool.end();
+  await admin.end(); // last, so the next run never meets this one's connections
 }
 
 /** One phone, signed in to one account. */
