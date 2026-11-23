@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { restore, useSession } from '../lib/session';
@@ -28,7 +29,7 @@ export default function Layout() {
       <SafeAreaProvider>
         <StatusBar style={dark ? 'light' : 'dark'} />
         <NavigationBar style={dark ? 'light' : 'dark'} />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.page } }}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.page }, ...(Platform.OS === 'ios' && { statusBarStyle: dark ? 'light' : 'dark' }) }}>
           <Stack.Protected guard={session.status === 'in'}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen

@@ -208,7 +208,7 @@ const LOOK: Record<DayStatus, { icon: 'check' | 'cross' | 'freeze' | 'back' | nu
   missed: { icon: 'cross', color: colors.red, fill: 'transparent', ring: colors.red },
   today: { icon: null, color: colors.ink, fill: 'transparent', ring: colors.ink },
   late: { icon: null, color: colors.ink, fill: 'transparent', ring: colors.soft },
-  before: { icon: null, color: '#8A8A8A', fill: 'transparent', ring: 'transparent' },
+  before: { icon: null, color: colors.soft, fill: 'transparent', ring: 'transparent' },
 };
 const LEGEND: [DayStatus, string][] = [
   ['done', 'Done'],
