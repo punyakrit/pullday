@@ -45,10 +45,11 @@ describe('paying', () => {
     const { world, engine, stripe } = await broken();
     assert.deepEqual(engine.getSnapshot().offer, OFFER);
     assert.deepEqual(await engine.beginPayment(), { clientSecret: 'secret', publishableKey: 'pk_test_x' });
+    stripe.state = 'paid';
+    const closed = engine.sheetClosed(false);
     assert.equal(state(engine), 'checking');
     assert.equal(engine.getSnapshot().offer, null); // nothing else to press
-    stripe.state = 'paid';
-    await engine.sheetClosed(false);
+    await closed;
     await settle();
     assert.equal(state(engine), null);
     assert.deepEqual(notices(engine), ['Paid. Your 40 day streak is back.']);
@@ -61,6 +62,23 @@ describe('paying', () => {
     const sheet = await engine.beginPayment();
     assert.ok(sheet);
     assert.equal(JSON.parse(world.storage.get('user:u1:saved')!).value.payment.id, 'p1');
+  });
+
+  test('while the sheet is open, what is behind it does not say anything is being checked', async () => {
+    const { world, engine, stripe } = await broken();
+    await engine.beginPayment();
+    assert.equal(state(engine), null);
+    assert.deepEqual(engine.getSnapshot().offer, OFFER);
+    engine.wake(); // back from the bank's own app
+    await settle();
+    assert.equal(state(engine), null);
+    Object.assign(stripe, { state: 'declined', problem: 'Your card was declined.' });
+    await engine.sheetClosed(false);
+    assert.equal(state(engine), 'declined');
+    await engine.beginPayment(); // and the second time it says what it said before
+    assert.equal(state(engine), 'declined');
+    engine.stop();
+    assert.equal(state(world.open()), 'checking'); // killed with the sheet open
   });
 
   test('a phone that cannot save does not begin', async () => {

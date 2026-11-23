@@ -44,6 +44,7 @@ export type Snapshot = {
   streakKnown: boolean;
   /** What is shown is only the last we knew. */
   streakOld: boolean;
+  /** While the sheet is open: what was said before it opened. */
   payment: Payment | null;
   /** Only with nothing unsent, and not while a payment is under way. */
   offer: WinBack | null;
@@ -86,6 +87,7 @@ export class Engine {
   private syncing = false;
   private unsaved = false;
   private paying: Promise<Sheet | null> | null = null;
+  private sheet: { before: Payment | null } | null = null; // it is on the screen
   private checking: Promise<void> | null = null;
   private cancelCheck: (() => void) | null = null;
   private checks = 0;
@@ -374,16 +376,21 @@ export class Engine {
     const wanted = this.isPending() ? this.saved.payment : (winBack ?? this.saved.payment);
     if (!wanted) throw new Refused(409, 'no_win_back', 'There is no streak to win back.');
     const { missedDay, lostStreak } = wanted;
+    const before = this.saved.payment;
     // It counts as contact, so it waits for everything else like any other call.
     const { data } = await this.ask<Paid & { clientSecret: string | null; publishableKey: string }>('POST', '/win-back', { missedDay });
+    // On disk it is already being checked, for a phone that dies now. On the screen, only once the sheet is gone.
+    this.sheet = { before };
     this.saved.payment = { id: data.id, missedDay, lostStreak, state: 'checking', problem: null };
     this.checks = 0;
     this.save();
     if (!data.clientSecret) {
+      this.sheet = null;
       this.heardOf(data, true);
       return null;
     }
     if (this.unsaved) {
+      this.sheet = null;
       this.saved.payment = null;
       this.publish();
       throw new Error('not saved'); // a payment that a kill would lose is not begun
@@ -396,10 +403,12 @@ export class Engine {
     // Closed by hand, nothing is likely to be on its way. But a connection error may have come before that,
     // and the card may have been charged all the same. So Stripe is asked twice.
     this.checks = canceled ? UNPAID_CHECKS - 1 : 0;
+    this.sheet = null;
+    this.publish();
     return this.checkPayment();
   }
 
-  private isPending = () => ['checking', 'processing', 'bank'].includes(this.saved.payment?.state ?? '');
+  private isPending = (payment = this.saved.payment) => ['checking', 'processing', 'bank'].includes(payment?.state ?? '');
 
   /** What became of the payment. A quiet call: it never counts as contact, so it does not wait for the gate. */
   checkPayment(): Promise<void> {
@@ -413,7 +422,7 @@ export class Engine {
     const { payment } = this.saved;
     this.cancelCheck?.();
     this.cancelCheck = null;
-    if (!payment || this.stopped) return;
+    if (!payment || this.stopped || this.sheet) return; // with the sheet open there is nothing to say yet
     try {
       const { data } = await this.deps.api.call<Paid>('GET', `/win-back/payments/${payment.id}`);
       this.heard();
@@ -501,6 +510,7 @@ export class Engine {
     this.today = null;
     this.owned = null;
     this.open = null;
+    this.sheet = null;
     this.cancelCheck?.();
     this.unsaved = false;
     for (const key of [...Object.values(this.keys), `user:${this.user.id}:clock`]) this.deps.storage.remove(key);
@@ -553,7 +563,7 @@ export class Engine {
       this.today !== null &&
       !this.saved.outbox.some((item) => item.kind === 'complete') &&
       this.clock.now() < Date.parse(this.today.endsAt);
-    const { payment } = this.saved;
+    const payment = this.sheet ? this.sheet.before : this.saved.payment;
     const winBack = this.today?.winBack ?? null;
     const offered = winBack !== null && streakKnown && this.saved.outbox.length === 0 && mayContact(this.saved, this.clock.now());
     return {
@@ -568,7 +578,7 @@ export class Engine {
       streakKnown,
       streakOld: !streakKnown || this.connection === 'offline' || this.connection === 'trouble',
       payment,
-      offer: offered && !this.isPending() && this.clock.now() < Date.parse(winBack.closesAt) ? winBack : null,
+      offer: offered && !this.isPending(payment) && this.clock.now() < Date.parse(winBack.closesAt) ? winBack : null,
     };
   }
 

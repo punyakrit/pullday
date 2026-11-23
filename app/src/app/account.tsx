@@ -92,8 +92,14 @@ function DevMenu({ engine, user }: { engine: Engine; user: User }) {
     title,
     work: async () => {
       await engine.beginPayment();
-      const id = engine.getSnapshot().payment?.id;
-      return id ? then(id) : 'There is nothing to pay for.';
+      const id = engine.getSnapshot().saved.payment?.id;
+      if (!id) return 'There is nothing to pay for.';
+      try {
+        return await then(id);
+      } catch (err) {
+        void engine.sheetClosed(false);
+        throw err;
+      }
     },
   });
   const dayEnd = () => (snapshot.today ? Date.parse(snapshot.today.endsAt) : now);

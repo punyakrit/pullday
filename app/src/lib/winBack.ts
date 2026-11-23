@@ -1,6 +1,6 @@
 import { PaymentSheet, PaymentSheetError, initPaymentSheet, initStripe, presentPaymentSheet } from '@stripe/stripe-react-native';
 import { Refused, Unreachable } from '../core/api';
-import type { Engine } from '../core/engine';
+import type { Engine, Sheet } from '../core/engine';
 import { colors } from '../ui/theme';
 
 let running = false;
@@ -9,8 +9,9 @@ let running = false;
 export async function payForWinBack(engine: Engine): Promise<string | null> {
   if (running) return null; // a second tap
   running = true;
+  let sheet: Sheet | null = null;
   try {
-    const sheet = await engine.beginPayment();
+    sheet = await engine.beginPayment();
     if (!sheet) return null; // paid already, or on its way
     await initStripe({ publishableKey: sheet.publishableKey, urlScheme: 'pulldaytest' });
     const opened = await initPaymentSheet({
@@ -32,6 +33,10 @@ export async function payForWinBack(engine: Engine): Promise<string | null> {
     await engine.sheetClosed(error?.code === PaymentSheetError.Canceled);
     return null;
   } catch (err) {
+    if (sheet) {
+      void engine.sheetClosed(false); // it broke with the payment begun: Stripe is asked
+      return null;
+    }
     if (err instanceof Refused) return err.message;
     if (err instanceof Unreachable) return err.kind === 'server' ? 'Payments cannot be reached right now. Try again in a moment.' : 'Connect to win your streak back.';
     return "This phone can't save right now, so no payment was begun. It may be out of space.";
