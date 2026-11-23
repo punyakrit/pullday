@@ -14,7 +14,7 @@ export type User = {
 };
 
 /** Who is calling, and from which phone. */
-export type Caller = { userId: string; deviceId: string; is_test: boolean; dev_offset_ms: number };
+export type Caller = { userId: string; deviceId: string; email: string; is_test: boolean; dev_offset_ms: number };
 
 export const TEST_EMAILS = ['new', 'today', 'done', 'freeze', 'broken', 'collector'].map(
   (name) => `${name}@pullday.test`,
@@ -108,7 +108,7 @@ export async function logOut(token: string): Promise<void> {
 /** The token is the only thing that says who is calling. */
 export async function findCaller(token: string): Promise<Caller | null> {
   const found = await pool.query<Caller>(
-    `select s.user_id as "userId", s.device_id as "deviceId", u.is_test, u.dev_offset_ms
+    `select s.user_id as "userId", s.device_id as "deviceId", u.email, u.is_test, u.dev_offset_ms
        from sessions s join users u on u.id = s.user_id where s.token_hash = $1`,
     [hashToken(token)],
   );

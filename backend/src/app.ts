@@ -3,8 +3,11 @@ import { type Caller, type User, findCaller, lockUser, logIn, logOut, signUp } f
 import { type Rarity, cardDetails, packedCatalogue } from './cards.ts';
 import * as challenges from './challenges.ts';
 import { type Db, pool, transaction } from './db.ts';
+import { isTimezone } from './days.ts';
+import { grantCards, moveTime, requireTestAccount } from './dev.ts';
 import { ApiError } from './errors.ts';
 import { type ImageOptions, type Width, imageStore } from './images.ts';
+import { resetAccount } from './seed.ts';
 import { enableDevOffset, now } from './time.ts';
 import { changeTimezone } from './timezone.ts';
 
@@ -28,6 +31,7 @@ const object = (properties: Record<string, unknown>, required = Object.keys(prop
   required,
   additionalProperties: false, // an unknown field, such as a date, is refused and not ignored
 });
+const optional = (properties: Record<string, unknown>) => ({ ...object(properties, []), type: ['object', 'null'] });
 const nothing = { type: ['object', 'null'], additionalProperties: false };
 const idParam = object({ id: { type: 'string', pattern: UUID } });
 const cardParam = object({ id: { type: 'string', pattern: '^c_[0-9]{4}$' } });
@@ -176,6 +180,50 @@ export function buildApp(options: { devTools: boolean; logger?: boolean; images?
       }
     },
   );
+
+  // Dev tools. Without DEV_TOOLS=1 these routes do not exist. They are quiet, so moving time
+  // does not spoil an offline test.
+
+  if (options.devTools) {
+    const config = { quiet: true };
+    app.post<{ Body: { minutes: number } }>(
+      '/dev/move-time',
+      { config, schema: { body: object({ minutes: { type: 'integer', minimum: 1, maximum: 60 * 24 * 365 } }) } },
+      async (request) =>
+        asUser(request, (db, user) => {
+          requireTestAccount(user);
+          return moveTime(db, user, request.body.minutes);
+        }),
+    );
+    app.post<{ Body: { cardId?: string; count?: number } | null }>(
+      '/dev/grant-card',
+      {
+        config,
+        schema: {
+          body: optional({
+            cardId: { type: 'string', pattern: '^c_[0-9]{4}$' },
+            count: { type: 'integer', minimum: 1, maximum: 2000 },
+          }),
+        },
+      },
+      async (request) =>
+        asUser(request, (db, user) => {
+          requireTestAccount(user);
+          return grantCards(db, user, request.body ?? {});
+        }),
+    );
+    app.post<{ Body: { timezone?: string } | null }>(
+      '/dev/reset',
+      { config, schema: { body: optional({ timezone: { type: 'string', maxLength: 64 } }) } },
+      async (request) => {
+        const timezone = request.body?.timezone;
+        if (timezone && !isTimezone(timezone)) throw new ApiError(400, 'bad_timezone', 'That time zone is not one we know.');
+        requireTestAccount(request.caller);
+        await resetAccount(request.caller.email, timezone);
+        return { reset: request.caller.email };
+      },
+    );
+  }
 
   return app;
 }
