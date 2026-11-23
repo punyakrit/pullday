@@ -272,6 +272,83 @@ describe('two days in the air', () => {
   });
 });
 
+describe('out of space', () => {
+  test('swiping goes on, the app says so, and it is saved once there is space', async () => {
+    const { world, engine, today } = await opened('2026-11-23T12:00:00Z');
+    engine.answer(today.challenge, 0, 'rare');
+    world.storage.full = true;
+    engine.answer(today.challenge, 1, 'holo');
+    engine.answer(today.challenge, 2, 'common');
+    const { view: shown, unsaved } = engine.getSnapshot();
+    assert.ok(unsaved && shown.kind === 'challenge' && shown.answers.length === 3);
+    const killed = world.open().getSnapshot().view;
+    assert.ok(killed.kind === 'challenge' && killed.answers.length === 1); // the last that was saved
+
+    world.storage.full = false;
+    engine.wake();
+    assert.equal(engine.getSnapshot().unsaved, false);
+    const again = world.open().getSnapshot().view;
+    assert.ok(again.kind === 'challenge' && again.answers.length === 3);
+  });
+
+  test('the finish is neither on disk nor with the server: nothing is revealed', async () => {
+    const { world, engine, today } = await opened('2026-11-23T12:00:00Z');
+    world.storage.full = true;
+    world.online = false;
+    playAll(engine, today.challenge);
+    await settle();
+    const { view: shown, unsent } = engine.getSnapshot();
+    assert.ok(shown.kind === 'challenge' && shown.answers.length === 8);
+    assert.equal(unsent, 1);
+
+    world.storage.full = false; // space, still offline: now it is safe
+    engine.wake();
+    const { view: after } = engine.getSnapshot();
+    assert.ok(after.kind === 'reveal' && !after.reveal.saved);
+    assert.equal(world.open().getSnapshot().unsent, 1);
+  });
+
+  test('no space, but the server has it: revealed', async () => {
+    const { world, engine, today } = await opened('2026-11-23T12:00:00Z');
+    world.storage.full = true;
+    playAll(engine, today.challenge);
+    assert.equal(view(engine), 'challenge');
+    await settle();
+    const { view: shown, unsaved } = engine.getSnapshot();
+    assert.ok(unsaved && shown.kind === 'reveal' && shown.reveal.saved);
+    engine.showReveal(today.challenge.id);
+    engine.revealShown(today.challenge.id); // a save that fails does not take the open card away
+    assert.equal(view(engine), 'reveal');
+    engine.closeReveal();
+    await settle();
+    assert.equal(view(engine), 'done');
+  });
+
+  test('a late finish with no space: the new day, and the card once it is safe', async () => {
+    const { world, engine, today } = await opened('2026-11-23T23:55:00Z');
+    engine.answer(today.challenge, 0, 'rare');
+    await settle();
+    world.storage.full = true;
+    world.online = false;
+    world.clock = '2026-11-24T00:05:00Z';
+    for (let i = 1; i < 8; i++) engine.answer(today.challenge, i, 'rare');
+    const { view: shown } = engine.getSnapshot();
+    assert.ok(shown.kind === 'challenge' && shown.challenge.day === '2026-11-24' && shown.waiting === null);
+    world.storage.full = false;
+    engine.wake();
+    const { view: after } = engine.getSnapshot();
+    assert.ok(after.kind === 'challenge' && after.waiting?.challengeId === today.challenge.id);
+  });
+
+  test('a full phone is not offline', async () => {
+    const { world, engine } = await opened('2026-11-23T12:00:00Z');
+    world.storage.full = true;
+    await engine.sync();
+    assert.equal(engine.getSnapshot().connection, 'online');
+    assert.deepEqual(world.calls, ['GET /today', 'GET /collection']);
+  });
+});
+
 describe('what the server refuses', () => {
   const refuse = async (code: string, seen: boolean) => {
     const { world, engine, today } = await opened('2026-11-23T12:00:00Z');

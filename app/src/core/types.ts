@@ -59,6 +59,7 @@ export type User = { id: string; email: string; timezone: string };
 /** A small store that finishes before it returns, so a killed app loses nothing. */
 export type Storage = {
   get(key: string): string | null;
-  set(key: string, value: string): void;
+  /** False: it could not be written, most likely because the phone is out of space. Never throws. */
+  set(key: string, value: string): boolean;
   remove(key: string): void;
 };

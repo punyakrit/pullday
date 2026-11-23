@@ -126,6 +126,15 @@ function Banner({ engine, snapshot, view }: { engine: Engine; snapshot: Snapshot
       </Pressable>
     );
   }
+  if (snapshot.unsaved) {
+    return (
+      <View style={[styles.banner, styles.notice]} accessibilityLiveRegion="polite">
+        <Words style={styles.noticeText}>
+          This phone can't save right now. It may be out of space. Free some and come back, or what you do now could be lost.
+        </Words>
+      </View>
+    );
+  }
   if (view.kind === 'challenge' && view.lateUntil) {
     return (
       <View style={styles.banner}>

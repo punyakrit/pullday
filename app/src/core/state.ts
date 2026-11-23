@@ -91,13 +91,16 @@ function revealOf(play: Play): Reveal {
   };
 }
 
+/** Finished, but only in memory: not on disk and not with the server. Nothing is revealed until it is safe. */
+const isUnsafe = (play: Play | undefined, unsaved: boolean): boolean => unsaved && isFinished(play) && play!.accepted === null;
+
 /** Reveals not yet shown to the end, oldest first. */
-export function pendingReveals(saved: Saved, today: Today | null): Reveal[] {
+export function pendingReveals(saved: Saved, today: Today | null, unsaved = false): Reveal[] {
   const found = new Map<string, Reveal>();
   for (const unseen of today?.unseenReveals ?? []) {
     found.set(unseen.challengeId, { challengeId: unseen.challengeId, day: unseen.day, card: unseen.card, score: null, saved: true });
   }
-  for (const play of Object.values(saved.plays)) if (isFinished(play)) found.set(play.challenge.id, revealOf(play));
+  for (const play of Object.values(saved.plays)) if (isFinished(play) && !isUnsafe(play, unsaved)) found.set(play.challenge.id, revealOf(play));
   return [...found.values()].filter((reveal) => !saved.seen[reveal.challengeId]).sort((a, b) => a.day.localeCompare(b.day));
 }
 
@@ -109,10 +112,10 @@ export function findReveal(saved: Saved, today: Today | null, challengeId: strin
 }
 
 /** The one place that decides what Today shows. */
-export function whatToShow(saved: Saved, today: Today | null, now: number, open: Reveal | null): View {
+export function whatToShow(saved: Saved, today: Today | null, now: number, open: Reveal | null, unsaved = false): View {
   // The newest word on it. The server stops listing a waiting card once it was seen, and it is still open here.
   if (open) return { kind: 'reveal', reveal: findReveal(saved, today, open.challengeId) ?? open };
-  const waiting = pendingReveals(saved, today);
+  const waiting = pendingReveals(saved, today, unsaved);
 
   // Yesterday's, if it was begun in time. Also one the server knows was begun, on another phone.
   const held = Object.values(saved.plays).find((play) => now >= ends(play.challenge) && isHeldOpen(play, now));
@@ -127,7 +130,7 @@ export function whatToShow(saved: Saved, today: Today | null, now: number, open:
   );
   if (!current) return { kind: 'empty' };
   const play = saved.plays[current.id];
-  if (!current.completedAt && !isFinished(play)) {
+  if (!current.completedAt && (!isFinished(play) || isUnsafe(play, unsaved))) {
     return { kind: 'challenge', challenge: current, answers: play?.answers ?? [], lateUntil: null, waiting: waiting[0] ?? null };
   }
   if (waiting[0]) return { kind: 'reveal', reveal: waiting[0] };

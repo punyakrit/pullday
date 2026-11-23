@@ -33,8 +33,9 @@ export function readRow<T>(storage: Storage, key: string, kind: Kind<T>): { valu
   return { value: null, unusable: true };
 }
 
-export function writeRow<T>(storage: Storage, key: string, kind: Kind<T>, value: T): void {
-  storage.set(key, JSON.stringify({ version: kind.upgrades.length, value }));
+/** False: it could not be written. */
+export function writeRow<T>(storage: Storage, key: string, kind: Kind<T>, value: T): boolean {
+  return storage.set(key, JSON.stringify({ version: kind.upgrades.length, value }));
 }
 
 // What each row must be for the rest of the app not to trip over it.

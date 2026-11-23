@@ -26,8 +26,8 @@ export function useCatalogue(engine: Engine): Map<string, Card> | null {
       .then((reply) => {
         if (reply.notModified) return;
         byId = new Map(reply.data.cards.map((card) => [card.id, card]));
-        writeRow(storage, CARDS, CATALOGUE, reply.data.cards);
-        if (reply.etag) storage.set(ETAG, reply.etag);
+        const kept = writeRow(storage, CARDS, CATALOGUE, reply.data.cards);
+        if (kept && reply.etag) storage.set(ETAG, reply.etag); // never the new mark on the old cards
         if (live) setCards(byId);
       })
       .catch(() => {}); // what is on the phone is still good

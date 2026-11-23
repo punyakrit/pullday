@@ -34,6 +34,8 @@ export type Snapshot = {
   connection: Connection;
   syncing: boolean;
   unsent: number;
+  /** The last save did not work. What was done since is only in memory. */
+  unsaved: boolean;
   /** Streak, freezes and win back are only true once the outbox is empty. */
   streakKnown: boolean;
 };
@@ -67,6 +69,7 @@ export class Engine {
   private openReveal: Reveal | null = null;
   private connection: Connection = 'unknown';
   private syncing = false;
+  private unsaved = false;
   private snapshot: Snapshot;
   private readonly listeners = new Set<() => void>();
   private flushing: Promise<boolean> | null = null;
@@ -131,12 +134,13 @@ export class Engine {
     play.answers = [...play.answers, rarity];
     this.saved.plays[challenge.id] = play;
     if (play.answers.length === CARDS) {
-      // The finish is in the outbox before anything is revealed.
+      // The finish is in the outbox, and on disk, before anything is revealed.
       this.queue({ kind: 'complete', challengeId: challenge.id, endsAt: Date.parse(challenge.endsAt), answers: play.answers });
-      this.openReveal = findReveal(this.saved, this.today, challenge.id);
     }
     this.save();
-    if (isFinished(play)) void this.flush();
+    if (!isFinished(play)) return;
+    if (!this.unsaved) this.showReveal(challenge.id);
+    void this.flush();
   }
 
   /** The card was shown to the end. Until this, a reveal starts over. */
@@ -259,7 +263,8 @@ export class Engine {
 
   /** The app came to the front, or the network came back. Several of these arrive together. */
   wake(): void {
-    this.publish();
+    if (this.unsaved) this.save(); // there may be space again
+    else this.publish();
     // Either way: the phone's clock can be moved back.
     const fresh = Math.abs(this.deps.local() - this.freshAt) < FRESH_MS && this.connection === 'online';
     if (!fresh || this.saved.outbox.length > 0) void this.sync();
@@ -348,6 +353,7 @@ export class Engine {
     this.today = null;
     this.owned = null;
     this.openReveal = null;
+    this.unsaved = false;
     for (const key of [...Object.values(this.keys), `user:${this.user.id}:clock`]) this.deps.storage.remove(key);
     this.clock.reset();
     this.publish();
@@ -396,10 +402,11 @@ export class Engine {
       saved: this.saved,
       today: this.today,
       owned: this.owned,
-      view: whatToShow(this.saved, this.today, this.clock.now(), this.openReveal),
+      view: whatToShow(this.saved, this.today, this.clock.now(), this.openReveal, this.unsaved),
       connection: this.connection,
       syncing: this.syncing,
       unsent: this.saved.outbox.filter((item) => item.kind === 'complete').length,
+      unsaved: this.unsaved,
       streakKnown:
         this.today !== null &&
         !this.saved.outbox.some((item) => item.kind === 'complete') &&
@@ -415,7 +422,7 @@ export class Engine {
 
   /** One row, one write: what was played and what is unsent can never disagree. */
   private save(): void {
-    writeRow(this.deps.storage, this.keys.saved, SAVED, this.saved);
+    this.unsaved = !writeRow(this.deps.storage, this.keys.saved, SAVED, this.saved);
     this.saved = { ...this.saved };
     this.publish();
   }

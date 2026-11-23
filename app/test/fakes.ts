@@ -10,7 +10,11 @@ export const USER: User = { id: 'u1', email: 'new@pullday.test', timezone: 'UTC'
 export class MemoryStorage implements Storage {
   readonly rows = new Map<string, string>();
   get = (key: string) => this.rows.get(key) ?? null;
-  set = (key: string, value: string) => void this.rows.set(key, value);
+  full = false;
+  set = (key: string, value: string) => {
+    if (!this.full) this.rows.set(key, value);
+    return !this.full;
+  };
   remove = (key: string) => void this.rows.delete(key);
 }
 

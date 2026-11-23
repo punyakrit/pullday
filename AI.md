@@ -27,6 +27,7 @@ On the phone (step 2):
 - **The app asked the server again at every change of signal**, because Android reports each one as a network event. Three times in 100 seconds untouched. Now none.
 - **Moving the phone's date back stopped the app from refreshing**, for as long as it was moved back. "Asked less than 5 seconds ago" was also true of any time in the future.
 - **What the phone saves had no version, and nothing checked it.** One damaged row would have stopped the app from opening, and an update that changed its shape could have lost a day. AI named it when the owner asked about SQLite, not before.
+- **A full phone crashed the app on the first swipe.** Every save could throw and nothing caught it. AI had noted it as a limit without trying it. On a full emulator it was fatal.
 - **Each swipe mounted about 30 views**, because every card carried its own stamps. Now one set follows the top card.
 - **Every size of every picture was kept**, which would have filled the deployed disk. And a picture that failed to decode once was called missing for an hour. The warming run skipped one real card that way.
 - **AI nearly drew the wrong conclusion from frame timings.** They looked bad until the same test on Android's Settings app scored the same.
