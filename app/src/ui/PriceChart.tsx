@@ -1,16 +1,20 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { Price } from '../core/details';
 import { dateText, describePrices, inOrder, money, nearest, plot } from '../core/prices';
+import { panel } from './Panel';
+import { Roll } from './Roll';
 import { Words } from './Words';
+import { hairline } from './hairline';
 import { colors, space } from './theme';
 
 const HEIGHT = 148;
 const INSET = { x: 8, y: 26 };
-const LINE = '#34A89C'; // checked against the panel behind it: contrast 3 to 1 and more
+const LINE = colors.ink;
 
 /** The price, week by week, and the day it is from. Drag across it to read a week. */
 export function PriceChart({ priceCents, priceDate, history }: { priceCents: number; priceDate: string | null; history: Price[] }) {
@@ -45,9 +49,9 @@ export function PriceChart({ priceCents, priceDate, history }: { priceCents: num
   const at = drawn?.points[picked ?? prices.length - 1];
   return (
     <View style={styles.chart}>
-      <Words kind="title" style={styles.tabular}>
-        {money(week ? week.priceCents : priceCents)}
-      </Words>
+      <View accessible accessibilityLabel={money(week ? week.priceCents : priceCents)}>
+        <Roll text={money(week ? week.priceCents : priceCents)} size={44} quick={week !== null} />
+      </View>
       <Words kind="soft">{week ? `Week of ${dateText(week.date)}` : priceDate ? `On ${dateText(priceDate)}` : 'Date not known'}</Words>
       {first && last && (
         <>
@@ -64,18 +68,19 @@ export function PriceChart({ priceCents, priceDate, history }: { priceCents: num
                 <>
                   <Svg width={width} height={HEIGHT}>
                     {[drawn.high, drawn.low].map((i) => (
-                      <Line key={i} x1={INSET.x} x2={width - INSET.x} y1={drawn.points[i]!.y} y2={drawn.points[i]!.y} stroke={colors.raised} strokeWidth={1} />
+                      <Line key={i} x1={INSET.x} x2={width - INSET.x} y1={drawn.points[i]!.y} y2={drawn.points[i]!.y} stroke={colors.line} strokeWidth={hairline} />
                     ))}
-                    <Path d={drawn.area} fill={LINE} fillOpacity={0.14} />
+                    <Path d={drawn.area} fill={LINE} fillOpacity={0.05} />
                     <Path d={drawn.path} stroke={LINE} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" fill="none" />
                     {picked !== null && <Line x1={at.x} x2={at.x} y1={4} y2={HEIGHT} stroke={colors.soft} strokeWidth={1} />}
-                    <Circle cx={at.x} cy={at.y} r={6} fill={colors.deep} />
+                    <Circle cx={at.x} cy={at.y} r={6} fill={colors.panel} />
                     <Circle cx={at.x} cy={at.y} r={4} fill={LINE} />
                   </Svg>
                   <Extreme text={`High ${money(prices[drawn.high]!.priceCents)}`} y={drawn.points[drawn.high]!.y - 19} x={drawn.points[drawn.high]!.x} width={width} />
                   {drawn.low !== drawn.high && (
                     <Extreme text={`Low ${money(prices[drawn.low]!.priceCents)}`} y={drawn.points[drawn.low]!.y + 3} x={drawn.points[drawn.low]!.x} width={width} />
                   )}
+                  <Cover width={width} />
                 </>
               )}
             </View>
@@ -97,6 +102,17 @@ export function PriceChart({ priceCents, priceDate, history }: { priceCents: num
   );
 }
 
+/** Drawn from left to right, by taking a cover away. Nothing is drawn again on the way. */
+function Cover({ width }: { width: number }) {
+  const reduced = useReducedMotion();
+  const gone = useSharedValue(reduced ? 1 : 0);
+  useEffect(() => {
+    if (!reduced) gone.value = withDelay(160, withTiming(1, { duration: 720, easing: Easing.inOut(Easing.cubic) }));
+  }, [gone, reduced]);
+  const style = useAnimatedStyle(() => ({ opacity: gone.value === 1 ? 0 : 1, transform: [{ translateX: gone.value * width }] }));
+  return <Animated.View pointerEvents="none" style={[styles.cover, style]} />;
+}
+
 /** Beside its point, and never off the edge. */
 function Extreme({ text, x, y, width }: { text: string; x: number; y: number; width: number }) {
   const left = Math.max(0, Math.min(x - 60, width - 120));
@@ -111,8 +127,9 @@ function Extreme({ text, x, y, width }: { text: string; x: number; y: number; wi
 }
 
 const styles = StyleSheet.create({
-  chart: { borderRadius: 12, backgroundColor: colors.deep, padding: space.l, gap: 2 },
-  box: { height: HEIGHT, marginTop: space.s },
+  chart: { ...panel, padding: space.xl, gap: 2 },
+  box: { height: HEIGHT, marginTop: space.s, overflow: 'hidden' },
+  cover: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: colors.panel },
   dates: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: space.s },
   small: { fontSize: 13, lineHeight: 16 },
   tabular: { fontVariant: ['tabular-nums'] },

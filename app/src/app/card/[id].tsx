@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ComponentRef, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ownedNow } from '../../core/collection';
 import type { Engine } from '../../core/engine';
@@ -9,13 +10,17 @@ import type { Card } from '../../core/types';
 import { cardOnPhone } from '../../lib/catalogue';
 import { useSession } from '../../lib/session';
 import { gridFor } from '../../lib/grid';
+import { openedFrom } from '../../lib/openCard';
 import { useDetails } from '../../lib/useDetails';
 import { useEngine } from '../../lib/useEngine';
 import { Button } from '../../ui/Button';
 import { CardImage, describeCard } from '../../ui/CardImage';
 import { Shape } from '../../ui/Icons';
+import { panel } from '../../ui/Panel';
 import { PriceChart } from '../../ui/PriceChart';
+import { Opening, Rise } from '../../ui/Rise';
 import { Words } from '../../ui/Words';
+import { hairline } from '../../ui/hairline';
 import { CARD_RATIO, colors, rarityColor, rarityName, space } from '../../ui/theme';
 
 export default function CardScreen() {
@@ -32,44 +37,70 @@ function CardDetails({ engine, id }: { engine: Engine; id: string }) {
   const mine = useMemo(() => ownedNow(owned, saved).find((one) => one.cardId === id) ?? null, [id, owned, saved]);
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xxl }]}
-      contentInsetAdjustmentBehavior="automatic"
-      indicatorStyle="white"
-    >
-      {card ? (
-        <>
-          <Art card={card} owned={mine !== null} />
-          <View style={styles.name}>
-            <Shape rarity={card.rarity} size={24} />
-            <Words kind="title" style={styles.shrink} accessibilityRole="header">
-              {card.name}
-            </Words>
-          </View>
+    <Opening>
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xxl }]}
+        contentInsetAdjustmentBehavior="automatic"
+        indicatorStyle="black"
+      >
+        {card ? (
+          <>
+            <Art card={card} owned={mine !== null} />
+            <Rise at={1} style={styles.name}>
+              <Shape rarity={card.rarity} size={24} />
+              <Words kind="title" style={styles.shrink} accessibilityRole="header">
+                {card.name}
+              </Words>
+            </Rise>
+            <Rise at={2}>
+              <Words kind="soft" style={styles.centre}>
+                <Words kind="soft" style={{ color: rarityColor[card.rarity] }}>
+                  {rarityName[card.rarity]}
+                </Words>
+                {mine === null ? '. Not yours yet' : mine.acquiredAt ? `. Yours since ${dayOf(mine.acquiredAt, snapshot.today?.timezone)}` : '. Yours'}
+              </Words>
+            </Rise>
+            <More engine={engine} card={card} />
+          </>
+        ) : (
           <Words kind="soft" style={styles.centre}>
-            <Words kind="soft" style={{ color: rarityColor[card.rarity] }}>
-              {rarityName[card.rarity]}
-            </Words>
-            {mine === null ? '. Not yours yet' : mine.acquiredAt ? `. Yours since ${dayOf(mine.acquiredAt, snapshot.today?.timezone)}` : '. Yours'}
+            This card is not on this phone yet. Connect to see it.
           </Words>
-          <More engine={engine} card={card} />
-        </>
-      ) : (
-        <Words kind="soft" style={styles.centre}>
-          This card is not on this phone yet. Connect to see it.
-        </Words>
-      )}
-    </ScrollView>
+        )}
+      </ScrollView>
+    </Opening>
   );
 }
 
 function Art({ card, owned }: { card: Card; owned: boolean }) {
   const window = useWindowDimensions();
   const width = Math.floor(Math.min(window.width * 0.64, (window.height * 0.55) / CARD_RATIO, 320));
+  const reduced = useReducedMotion();
+  const view = useRef<ComponentRef<typeof View>>(null);
+  const [start] = useState(() => openedFrom(card.id));
+  const grown = useSharedValue(start && !reduced ? 0 : 1);
+  const off = useSharedValue({ x: 0, y: 0, scale: 1 });
+  // It starts where it was tapped, at the size it was there, and grows into its place.
+  useLayoutEffect(() => {
+    if (!start || reduced) return;
+    view.current?.measureInWindow((x, y) => {
+      const scale = start.width / width;
+      off.value = { x: start.x + start.width / 2 - (x + width / 2), y: start.y + (start.width * CARD_RATIO) / 2 - (y + (width * CARD_RATIO) / 2), scale };
+      grown.value = withTiming(1, { duration: 320, easing: Easing.out(Easing.cubic) });
+    });
+  }, [grown, off, reduced, start, width]);
+  const growing = useAnimatedStyle(() => {
+    const left = 1 - grown.value;
+    return { transform: [{ translateX: off.value.x * left }, { translateY: off.value.y * left }, { scale: 1 + (off.value.scale - 1) * left }] };
+  });
   return (
     <View style={styles.art} accessible accessibilityRole="image" accessibilityLabel={describeCard(card)}>
-      <CardImage card={card} width={width} height={Math.floor(width * CARD_RATIO)} grey={!owned} under={gridFor(window.width).size} priority="high" />
+      <View ref={view} collapsable={false} style={{ width, height: Math.floor(width * CARD_RATIO) }}>
+        <Animated.View style={growing}>
+          <CardImage card={card} width={width} height={Math.floor(width * CARD_RATIO)} grey={!owned} under={gridFor(window.width).size} priority="high" />
+        </Animated.View>
+      </View>
     </View>
   );
 }
@@ -83,14 +114,14 @@ function More({ engine, card }: { engine: Engine; card: Card }) {
 
   return (
     <>
-      <View style={styles.facts}>
+      <Rise at={3} style={styles.facts}>
         <Fact name="Set" value={card.set} />
         <Fact name="Year" value={String(card.year)} />
         <Fact name="Number" value={card.number ?? 'Not numbered'} />
         {card.variety !== null && <Fact name="Variety" value={card.variety} />}
         <Fact name="Grade" value={`${shown?.grader ?? 'PSA'} ${card.grade}`} />
         <Fact name="Population" value={shown ? `${shown.population.toLocaleString('en-US')} at this grade` : ' '} last />
-      </View>
+      </Rise>
       {shown ? (
         <>
           <Section title="Price">
@@ -147,12 +178,14 @@ function useSettled(): boolean {
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <View style={styles.section}>
-      <Words kind="heading" accessibilityRole="header">
-        {title}
-      </Words>
-      {children}
-    </View>
+    <Opening>
+      <Rise style={styles.section}>
+        <Words kind="heading" accessibilityRole="header">
+          {title}
+        </Words>
+        {children}
+      </Rise>
+    </Opening>
   );
 }
 
@@ -168,15 +201,15 @@ function Fact({ name, value, last = false }: { name: string; value: string; last
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.mat },
+  screen: { flex: 1, backgroundColor: colors.page },
   content: { paddingHorizontal: space.xl, paddingTop: space.s, gap: space.m },
-  art: { alignItems: 'center', paddingBottom: space.s },
+  art: { alignItems: 'center', paddingBottom: space.s, zIndex: 1 },
   name: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s },
   shrink: { flexShrink: 1, textAlign: 'center' },
   centre: { textAlign: 'center' },
-  facts: { marginTop: space.s, borderRadius: 12, backgroundColor: colors.deep, paddingHorizontal: space.l },
-  fact: { flexDirection: 'row', justifyContent: 'space-between', gap: space.l, paddingVertical: 11 },
-  line: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
+  facts: { ...panel, marginTop: space.s, paddingHorizontal: space.xl, paddingVertical: space.xs },
+  fact: { flexDirection: 'row', justifyContent: 'space-between', gap: space.l, paddingVertical: 13 },
+  line: { borderBottomWidth: hairline, borderBottomColor: colors.line },
   factName: { minWidth: 84 },
   factValue: { flexShrink: 1, textAlign: 'right' },
   section: { gap: space.s, marginTop: space.m },
