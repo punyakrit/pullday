@@ -36,6 +36,7 @@ export default function Layout() {
               name="card/[id]"
               options={{
                 animation: 'fade', // the card itself grows into place
+                animationDuration: 180, // iOS. Any longer and the growing is over before it shows
                 headerShown: true,
                 title: '',
                 headerShadowVisible: false,
