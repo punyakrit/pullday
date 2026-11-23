@@ -10,6 +10,8 @@ export function Button({ title, kind = 'main', busy = false, disabled, ...rest }
     <View style={styles.clip}>
       <Pressable
         accessibilityRole="button"
+        // Always named. Without a name Android reads out "busy", and React Native never takes that back.
+        accessibilityLabel={title}
         accessibilityState={{ disabled: Boolean(disabled) || busy, busy }}
         android_ripple={{ color: main ? '#00000022' : '#FFFFFF22' }}
         disabled={disabled || busy}
