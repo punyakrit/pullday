@@ -54,17 +54,17 @@ function DevMenu({ engine, user }: { engine: Engine; user: User }) {
   const snapshot = useEngine(engine);
   const now = useServerNow(engine, 1_000);
   const [busy, setBusy] = useState<string | null>(null);
-  const [said, setSaid] = useState<string | null>(null);
+  const [said, setSaid] = useState<{ group: string; text: string } | null>(null); // under the button that said it
   const [offline, setOffline] = useState(api.pretendOffline);
 
-  async function run(title: string, work: () => Promise<string>) {
+  async function run(group: string, title: string, work: () => Promise<string>) {
     if (busy) return;
     setBusy(title);
     setSaid(null);
     try {
-      setSaid(await work());
+      setSaid({ group, text: await work() });
     } catch (err) {
-      setSaid(explain(err));
+      setSaid({ group, text: explain(err) });
     } finally {
       setBusy(null);
     }
@@ -223,21 +223,21 @@ function DevMenu({ engine, user }: { engine: Engine; user: User }) {
           }}
         />
       </View>
-      {said && (
-        <Words style={styles.said} accessibilityLiveRegion="polite">
-          {said}
-        </Words>
-      )}
       {groups.map((group) => (
         <View key={group.name} style={styles.group}>
           <Words kind="label">{group.name}</Words>
           <View style={styles.actions}>
             {group.actions.map(({ title, work }) => (
               <View key={title} style={styles.action}>
-                <Button kind="quiet" title={title} busy={busy === title} disabled={busy !== null && busy !== title} onPress={() => void run(title, work)} />
+                <Button kind="quiet" title={title} busy={busy === title} disabled={busy !== null && busy !== title} onPress={() => void run(group.name, title, work)} />
               </View>
             ))}
           </View>
+          {said?.group === group.name && (
+            <Words style={styles.said} accessibilityLiveRegion="polite">
+              {said.text}
+            </Words>
+          )}
         </View>
       ))}
       <Button title="Back to Today" onPress={() => router.dismissTo('/')} />

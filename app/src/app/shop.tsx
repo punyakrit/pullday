@@ -62,7 +62,7 @@ function Owned({ count, old }: { count: number; old: boolean }) {
     <View style={styles.owned} accessible accessibilityLabel={`You have ${count} of ${MOST} freezes.${old ? ' Last known, it may be old.' : ''}`}>
       <View style={styles.places}>
         {Array.from({ length: MOST }, (_, i) => (
-          <View key={i} style={[styles.place, i < count ? styles.filled : styles.free]}>
+          <View key={`${i}-${i < count}`} style={[styles.place, i < count ? styles.filled : styles.free]}>
             {i < count && <Icon name="freeze" size={40} color={colors.deep} />}
           </View>
         ))}
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
   owned: { alignItems: 'center', gap: space.s, paddingVertical: space.m },
   places: { flexDirection: 'row', gap: space.m },
   place: { width: 76, height: 96, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
-  filled: { backgroundColor: frozen, borderColor: frozen },
+  filled: { backgroundColor: frozen, borderColor: frozen, borderStyle: 'solid' },
   free: { borderColor: colors.line, borderStyle: 'dashed' },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.m },
   grow: { flex: 1 },

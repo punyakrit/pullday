@@ -3,7 +3,6 @@ import Animated, { FadeIn, SlideInDown, useReducedMotion } from 'react-native-re
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PRODUCT } from '../core/store';
 import { store, useStoreSheet } from '../lib/store';
-import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icons';
 import { Words } from '../ui/Words';
 import { colors, space } from '../ui/theme';
@@ -54,10 +53,18 @@ export function StoreSheet() {
               {sheet?.busy ? <ActivityIndicator color={colors.label} /> : <Words kind="label">Buy</Words>}
             </Pressable>
           </View>
-          {/* Keeps its place while it is paying, so nothing jumps. */}
-          <View style={{ opacity: sheet?.busy ? 0 : 1 }} pointerEvents={sheet?.busy ? 'none' : 'auto'}>
-            <Button kind="quiet" title="Cancel" disabled={sheet?.busy} onPress={close} />
-          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+            disabled={sheet?.busy}
+            android_ripple={{ color: '#00000014' }}
+            style={({ pressed }) => [styles.cancel, (pressed || sheet?.busy) && { opacity: sheet?.busy ? 0 : 0.6 }]} // keeps its place, so nothing jumps
+            onPress={close}
+          >
+            <Words kind="label" style={styles.dark}>
+              Cancel
+            </Words>
+          </Pressable>
         </Animated.View>
       </View>
     </Modal>
@@ -73,6 +80,7 @@ const styles = StyleSheet.create({
   icon: { width: 56, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#D3EEFF' },
   dark: { color: colors.onLabel },
   grey: { color: '#4A6663' },
+  cancel: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   buy: { borderRadius: 10, overflow: 'hidden' },
   button: { minHeight: 52, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.mat },
 });
