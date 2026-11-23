@@ -364,6 +364,20 @@ describe('the streak when it may be old', () => {
     assert.deepEqual([engine.getSnapshot().today!.streak, engine.getSnapshot().streakOld], [14, false]);
   });
 
+  test('the flame always has a number on a phone that was ever told one', async () => {
+    const world = new World('2026-11-23T20:00:00Z');
+    world.normal({ streak: 12 });
+    await world.open().sync();
+    world.online = false;
+    world.storage.set('user:u1:today', 'damaged');
+    const again = world.open();
+    await again.sync();
+    const { streak, streakOld, today } = again.getSnapshot();
+    assert.deepEqual([today, streak, streakOld], [null, 12, true]);
+    again.forget();
+    assert.equal(world.open().getSnapshot().streak, null);
+  });
+
   test('offline: what we knew, and that it may be old', async () => {
     const world = new World('2026-11-23T20:00:00Z');
     world.normal({ streak: 12 });

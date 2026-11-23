@@ -124,6 +124,9 @@ export const TODAY: Kind<Today> = {
     isList(value.unseenReveals, (one) => isObject(one) && isText(one.challengeId) && isText(one.day) && isCard(one.card)),
 };
 
+/** The streak the server last told us, kept apart: it is still shown when the rest of that day cannot be read. */
+export const STREAK: Kind<number> = { upgrades: [], check: isNumber };
+
 export const OWNED: Kind<OwnedCard[]> = {
   upgrades: [same],
   check: (value): value is OwnedCard[] => isList(value, (one) => isObject(one) && isText(one.cardId)),

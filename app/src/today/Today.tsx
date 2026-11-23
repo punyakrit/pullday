@@ -79,21 +79,25 @@ function RevealOf({ engine, snapshot, view }: { engine: Engine; snapshot: Snapsh
 }
 
 function Header({ engine, snapshot }: { engine: Engine; snapshot: Snapshot }) {
-  const { streakOld, today } = snapshot;
+  const { streak, streakOld } = snapshot;
   return (
     <View style={styles.header}>
       <Pressable
         style={({ pressed }) => [styles.streak, pressed && { opacity: 0.6 }]}
         hitSlop={12}
         accessibilityRole="button"
-        accessibilityLabel={today ? `Streak, ${today.streak} days.${streakOld ? ' Last known, it may be old.' : ''}` : 'Streak'}
+        accessibilityLabel={streak === null ? 'Streak, not known yet' : `Streak, ${streak} days.${streakOld ? ' Last known, it may be old.' : ''}`}
         onPress={() => router.push('/streak')}
       >
         <Flame size={22} color={streakOld ? colors.soft : colors.rare} />
-        <Words kind="heading" style={[styles.tabular, streakOld && { color: colors.soft }]}>
-          {today?.streak ?? ' '}
+        <Words kind="heading" style={styles.tabular}>
+          {streak ?? '–'}
         </Words>
-        {today && streakOld && <Words kind="soft">?</Words>}
+        {streak !== null && streakOld && (
+          <Words kind="soft" numberOfLines={1} maxFontSizeMultiplier={1.1} style={styles.small}>
+            last known
+          </Words>
+        )}
       </Pressable>
       <View style={styles.tag}>
         <Words kind="soft" maxFontSizeMultiplier={1.1} style={styles.tagText}>
@@ -227,6 +231,7 @@ const styles = StyleSheet.create({
   streak: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 64 },
   tabular: { fontVariant: ['tabular-nums'] },
   tag: { borderRadius: 6, backgroundColor: colors.deep, paddingHorizontal: 10, paddingVertical: 3 },
+  small: { fontSize: 13, lineHeight: 18 },
   tagText: { fontSize: 13, lineHeight: 18 },
   account: { minWidth: 64, alignItems: 'flex-end' },
   banner: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginHorizontal: space.l, marginBottom: space.s, paddingHorizontal: space.m, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.deep },

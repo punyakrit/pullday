@@ -1,7 +1,7 @@
 import { type Api, Refused, SignedOut, Unreachable } from './api';
 import { ServerClock } from './clock';
 import { dateText } from './prices';
-import { OWNED, SAVED, TODAY, readRow, writeRow } from './rows';
+import { OWNED, SAVED, STREAK, TODAY, readRow, writeRow } from './rows';
 import {
   CARDS,
   OFFLINE_MS,
@@ -49,6 +49,8 @@ export type Snapshot = {
   unsaved: boolean;
   /** Streak, freezes and win back are only true once the outbox is empty. */
   streakKnown: boolean;
+  /** The last one we were told. Null: never, on this phone. */
+  streak: number | null;
   /** What is shown is only the last we knew. */
   streakOld: boolean;
   /** While the sheet is open: what was said before it opened. */
@@ -96,6 +98,7 @@ export class Engine {
   private saved: Saved;
   private today: Today | null;
   private owned: OwnedCard[] | null;
+  private lastStreak: number | null;
   private open: Open | null = null;
   private connection: Connection = 'unknown';
   private syncing = false;
@@ -121,17 +124,18 @@ export class Engine {
   private cancelRetry: (() => void) | null = null;
   private stopped = false;
   private readonly deps: Deps;
-  private readonly keys: { saved: string; today: string; owned: string; aside: string };
+  private readonly keys: { saved: string; today: string; owned: string; streak: string; aside: string };
 
   constructor(deps: Deps) {
     this.deps = deps;
     this.user = deps.user;
     const base = `user:${deps.user.id}`;
-    this.keys = { saved: `${base}:saved`, today: `${base}:today`, owned: `${base}:owned`, aside: `${base}:saved:aside` };
+    this.keys = { saved: `${base}:saved`, today: `${base}:today`, owned: `${base}:owned`, streak: `${base}:streak`, aside: `${base}:saved:aside` };
     this.clock = new ServerClock(deps.storage, `${base}:clock`, deps.local);
     // These two can be fetched again.
     this.today = readRow(deps.storage, this.keys.today, TODAY).value;
     this.owned = readRow(deps.storage, this.keys.owned, OWNED).value;
+    this.lastStreak = this.today?.streak ?? readRow(deps.storage, this.keys.streak, STREAK).value;
     this.saved = this.restore();
     this.snapshot = this.build();
     this.leaveStore = deps.store.subscribe(() => this.reconcile());
@@ -278,6 +282,7 @@ export class Engine {
       const { streak, todayDone, freezes, freezesUsed, freezeRefunds, winBack, recentDays, settledThrough } = data;
       this.today = { ...this.today, streak, todayDone, freezes, freezesUsed, freezeRefunds, winBack, recentDays, settledThrough };
       writeRow(this.deps.storage, this.keys.today, TODAY, this.today);
+      this.keepStreak(streak);
     }
     if (data.card && this.owned && !this.owned.some((one) => one.cardId === data.card!.id)) {
       this.owned = [{ cardId: data.card.id, acquiredAt: data.completedAt, revealSeenAt: null }, ...this.owned];
@@ -620,6 +625,7 @@ export class Engine {
     this.clock.sync(today.now, sentAt, receivedAt);
     this.today = today;
     writeRow(this.deps.storage, this.keys.today, TODAY, today);
+    this.keepStreak(today.streak);
     const now = this.clock.now();
     const unsent = new Set(this.saved.outbox.map((item) => item.challengeId));
     const known = [today.challenge, today.tomorrow, today.resume];
@@ -651,6 +657,7 @@ export class Engine {
     this.saved = emptySaved();
     this.today = null;
     this.owned = null;
+    this.lastStreak = null;
     this.open = null;
     this.sheet = null;
     this.cancelCheck?.();
@@ -685,6 +692,11 @@ export class Engine {
     if (!first) for (const id of freezeRefunds) this.tell(`refund:${id}`, TOO_MANY);
     // Only what the server still lists, so it never grows.
     this.saved.told = [...freezesUsed.map((day) => `used:${day}`), ...freezeRefunds.map((id) => `refund:${id}`)];
+  }
+
+  private keepStreak(streak: number): void {
+    this.lastStreak = streak;
+    writeRow(this.deps.storage, this.keys.streak, STREAK, streak);
   }
 
   /** Once on this phone. */
@@ -742,6 +754,7 @@ export class Engine {
       unsent: this.saved.outbox.filter((item) => item.kind === 'complete').length,
       unsaved: this.unsaved,
       streakKnown,
+      streak: this.lastStreak,
       streakOld: !streakKnown || this.connection === 'offline' || this.connection === 'trouble',
       payment,
       buying: this.buying?.id ?? null,
