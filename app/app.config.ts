@@ -16,5 +16,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           (name) => `android.permission.${name}`,
         ),
   },
-  plugins: [...(config.plugins ?? []), ['expo-build-properties', { android: { usesCleartextTraffic: local } }]],
+  plugins: [...(config.plugins ?? []), [
+      'expo-build-properties',
+      {
+        android: {
+          usesCleartextTraffic: local,
+          // Stripe's optional card provisioning, which we do not use. See plugins/withoutTapAndPay.js.
+          extraProguardRules: '-dontwarn com.stripe.android.pushProvisioning.**\n-dontwarn com.google.android.gms.tapandpay.**',
+        },
+      },
+    ]],
 });
