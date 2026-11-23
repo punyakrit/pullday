@@ -5,6 +5,7 @@ import * as challenges from './challenges.ts';
 import { type Db, pool, transaction } from './db.ts';
 import { ApiError } from './errors.ts';
 import { enableDevOffset, now } from './time.ts';
+import { changeTimezone } from './timezone.ts';
 
 declare module 'fastify' {
   interface FastifyContextConfig {
@@ -95,6 +96,12 @@ export function buildApp(options: { devTools: boolean; logger?: boolean }): Fast
     await logOut(request.token);
     return reply.code(204).send();
   });
+
+  app.put<{ Body: { timezone: string } }>(
+    '/me/timezone',
+    { schema: { body: object({ timezone: { type: 'string', maxLength: 64 } }) } },
+    async (request) => asUser(request, (db, user) => changeTimezone(db, user, request.body.timezone)),
+  );
 
   // The daily loop
 

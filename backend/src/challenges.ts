@@ -1,9 +1,10 @@
 import { type User, getZones } from './auth.ts';
 import { type CardSummary, type Rarity, catalogue, summary } from './cards.ts';
 import type { Db } from './db.ts';
-import { type Day, type Zone, addDays, currentDay, dayEnd, dayStart, judge } from './days.ts';
+import { type Day, type Zone, addDays, currentDay, dayEnd, dayStart, judge, nextDay } from './days.ts';
 import { ApiError } from './errors.ts';
 import { getStreak, replay, settle } from './streak.ts';
+import { zoneStatus } from './timezone.ts';
 import { now } from './time.ts';
 
 type Challenge = {
@@ -38,19 +39,21 @@ async function pickCards(rewardId: string | null): Promise<string[]> {
 }
 
 /**
- * A random card the user does not own. Prefers one no other unfinished challenge has promised:
- * a phone that is offline may already have shown that promise.
+ * A random card the user does not own, or null if they own every one. A card promised by
+ * another unfinished challenge is left alone, because a phone that is offline may already have
+ * shown it. When finishing, taking a promised card beats giving nothing.
  */
-async function pickReward(db: Db, userId: string, today: Day, forChallengeDay: Day): Promise<string | null> {
+async function pickReward(db: Db, userId: string, today: Day, forDay: Day, takePromised = false): Promise<string | null> {
   const found = await db.query<{ id: string }>(
-    `select c.id from cards c
+    `with promised as (
+       select reward_card_id as id from challenges
+        where user_id = $1 and completed_at is null and reward_card_id is not null and day >= $2 and day <> $3)
+     select c.id from cards c
       where not exists (select 1 from collection o where o.user_id = $1 and o.card_id = c.id)
-      order by c.id in (select reward_card_id from challenges
-                         where user_id = $1 and completed_at is null and day >= $2 and day <> $3
-                           and reward_card_id is not null),
-               random()
+        and ($4 or c.id not in (select id from promised))
+      order by c.id in (select id from promised), random()
       limit 1`,
-    [userId, addDays(today, -4), forChallengeDay],
+    [userId, addDays(today, -4), forDay, takePromised],
   );
   return found.rows[0]?.id ?? null;
 }
@@ -140,10 +143,11 @@ export async function getToday(db: Db, user: User, deviceId: string) {
     now: at,
     day: today,
     endsAt: dayEnd(zones, today),
+    ...zoneStatus(zones, today),
     ...(await getStreak(db, user, today, at)),
     resume: await resumable(db, user, zones, today),
     challenge: await describe(await issue(db, user, today, today, deviceId), zones),
-    tomorrow: await describe(await issue(db, user, today, addDays(today, 1), deviceId), zones),
+    tomorrow: await describe(await issue(db, user, today, nextDay(zones, today), deviceId), zones),
     unseenReveals: await unseenReveals(db, user.id),
   };
 }
@@ -190,7 +194,10 @@ export async function complete(db: Db, user: User, deviceId: string, challengeId
   const at = now(user);
   const challenge = await findChallenge(db, user.id, challengeId);
   const zones = await getZones(db, user.id);
-  if (challenge.completed_at) return result(db, user, zones, challenge, true);
+  if (challenge.completed_at) {
+    await settle(db, user, zones, at);
+    return result(db, user, zones, challenge, true);
+  }
 
   const phone = await db.query<{ issued_at: Date | null; last_contact_at: Date | null }>(
     `select b.issued_at, d.last_contact_at from devices d
@@ -211,7 +218,7 @@ export async function complete(db: Db, user: User, deviceId: string, challengeId
 
   let reward = challenge.reward_card_id;
   if (!reward || (await owns(db, user.id, reward))) {
-    reward = await pickReward(db, user.id, currentDay(zones, at), challenge.day);
+    reward = await pickReward(db, user.id, currentDay(zones, at), challenge.day, true);
   }
   if (reward) {
     await db.query('insert into collection (user_id, card_id, acquired_at, challenge_id) values ($1, $2, $3, $4)', [

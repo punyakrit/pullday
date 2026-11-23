@@ -83,6 +83,13 @@ export function currentDay(zones: Zone[], at: Date): Day {
   return localDate(at, zones[0]!.tz);
 }
 
+/** The next day with any time in it. A move across the date line can skip a date. */
+export function nextDay(zones: Zone[], day: Day): Day {
+  let next = addDays(day, 1);
+  while (dayLength(zones, next) === 0) next = addDays(next, 1);
+  return next;
+}
+
 export type Verdict = 'on_time' | 'grace' | 'offline' | 'too_early' | 'too_late';
 
 /** Does a completion arriving now count for its day? */
@@ -96,6 +103,7 @@ export function judge(c: {
 }): Verdict {
   const late = c.now.getTime() - c.dayEnd.getTime();
   if (c.now < c.dayStart) return 'too_early';
+  if (c.dayStart >= c.dayEnd) return 'too_late'; // a date that was skipped cannot be played
   if (late < 0) return 'on_time';
   if (c.startedAt && c.startedAt < c.dayEnd && late <= GRACE_MS) return 'grace';
   const hadBundle = c.bundleIssuedAt !== null && c.bundleIssuedAt < c.dayEnd;
