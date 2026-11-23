@@ -25,6 +25,7 @@ On the phone (step 2):
 - **The dev menu's offline switch outlived the log out**, so nobody could log in until the app was killed. The owner reported it. Ending a session is now one call that also turns the switch off.
 - **A button that had been busy once stayed "busy" to Android's screen reader.** Buttons had no name of their own. AI found it reading a screen dump.
 - **The app asked the server again at every change of signal**, because Android reports each one as a network event. Three times in 100 seconds untouched. Now none.
+- **Moving the phone's date back stopped the app from refreshing**, for as long as it was moved back. "Asked less than 5 seconds ago" was also true of any time in the future.
 - **Each swipe mounted about 30 views**, because every card carried its own stamps. Now one set follows the top card.
 - **Every size of every picture was kept**, which would have filled the deployed disk. And a picture that failed to decode once was called missing for an hour. The warming run skipped one real card that way.
 - **AI nearly drew the wrong conclusion from frame timings.** They looked bad until the same test on Android's Settings app scored the same.

@@ -258,7 +258,8 @@ export class Engine {
   /** The app came to the front, or the network came back. Several of these arrive together. */
   wake(): void {
     this.publish();
-    const fresh = this.deps.local() - this.freshAt < FRESH_MS && this.connection === 'online';
+    // Either way: the phone's clock can be moved back.
+    const fresh = Math.abs(this.deps.local() - this.freshAt) < FRESH_MS && this.connection === 'online';
     if (!fresh || this.saved.outbox.length > 0) void this.sync();
   }
 

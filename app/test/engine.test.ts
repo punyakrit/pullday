@@ -561,6 +561,23 @@ describe('the clock', () => {
     assert.equal(engine.clock.now(), before);
   });
 
+  test('a phone date moved back: the next time the app comes to the front it asks, and the clock is right again', async () => {
+    const { world, engine } = await opened('2026-11-23T12:00:00Z');
+    const server = world.time;
+    const respond = world.respond;
+    world.respond = (method, path) => {
+      const reply = respond(method, path);
+      if (reply !== 'down' && path === '/today') Object.assign(reply.body as object, { now: new Date(server + HOUR).toISOString() });
+      return reply;
+    };
+    world.time -= 24 * HOUR;
+    engine.wake();
+    await settle();
+    assert.deepEqual(world.calls, ['GET /today', 'GET /collection']);
+    world.time += 10 * MINUTE;
+    assert.equal(engine.clock.now(), server + HOUR + 10 * MINUTE);
+  });
+
   test('knows when to look again', async () => {
     const { engine } = await opened('2026-11-23T12:00:00Z');
     assert.equal(engine.nextChange(), Date.parse('2026-11-24T00:00:00Z'));
