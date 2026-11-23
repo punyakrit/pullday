@@ -698,16 +698,16 @@ describe('reveals from before', () => {
     assert.equal(view(world.open()), 'challenge'); // and it does not come back
   });
 
-  test('a waiting card seen on another phone while it is open here: kept until it is closed', async () => {
+  test('a waiting card seen on another phone, still sealed here: let go', async () => {
     const { world, engine } = await opened('2026-11-23T12:00:00Z');
     world.normal({ unseenReveals: [waitingCard] });
     await engine.sync();
-    engine.showReveal('ch-2026-11-22');
+    const again = world.open(); // from what was cached
+    again.showReveal('ch-2026-11-22');
+    assert.equal(view(again), 'reveal');
     world.normal();
-    await engine.sync();
-    assert.equal(view(engine), 'reveal');
-    engine.closeReveal();
-    assert.equal(view(engine), 'challenge');
+    await again.sync();
+    assert.equal(view(again), 'challenge');
   });
 
   test('the open card is let go when the account starts over', async () => {

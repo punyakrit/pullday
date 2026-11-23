@@ -5,8 +5,8 @@ import {
   CARDS,
   OFFLINE_MS,
   type OutboxItem,
+  type Open,
   type Play,
-  type Reveal,
   type Saved,
   type View,
   emptySaved,
@@ -65,8 +65,7 @@ export class Engine {
   private saved: Saved;
   private today: Today | null;
   private owned: OwnedCard[] | null;
-  /** On screen until it is closed. Kept whole, so that nothing the server lists or stops listing can take it away. */
-  private openReveal: Reveal | null = null;
+  private open: Open | null = null;
   private connection: Connection = 'unknown';
   private syncing = false;
   private unsaved = false;
@@ -153,20 +152,21 @@ export class Engine {
       challengeId,
       endsAt: challenge ? Date.parse(challenge.endsAt) : this.clock.now(),
     });
-    this.openReveal = findReveal(this.saved, this.today, challengeId) ?? this.openReveal;
+    const reveal = findReveal(this.saved, this.today, challengeId);
+    if (reveal) this.open = { reveal, seen: true }; // stays until it is closed
     this.save();
     void this.flush();
   }
 
   showReveal(challengeId: string): void {
-    const reveal = this.openReveal?.challengeId === challengeId ? null : findReveal(this.saved, this.today, challengeId);
+    const reveal = this.open?.reveal.challengeId === challengeId ? null : findReveal(this.saved, this.today, challengeId);
     if (!reveal) return;
-    this.openReveal = reveal;
+    this.open = { reveal, seen: false };
     this.publish();
   }
 
   closeReveal(): void {
-    this.openReveal = null;
+    this.open = null;
     this.publish();
     void this.sync();
   }
@@ -235,7 +235,7 @@ export class Engine {
   private refused(item: OutboxItem, err: Refused): void {
     if (item.kind !== 'complete') return;
     delete this.saved.plays[item.challengeId];
-    if (this.openReveal?.challengeId === item.challengeId) this.openReveal = null;
+    if (this.open?.reveal.challengeId === item.challengeId) this.open = null;
     const wasShown = this.saved.seen[item.challengeId] === true;
     delete this.saved.seen[item.challengeId];
     if (err.code === 'too_late') {
@@ -331,7 +331,7 @@ export class Engine {
       const old = Date.parse(play.challenge.endsAt) + OFFLINE_MS < now;
       // The account was reset: another challenge is now the one for that day.
       const replaced = !current && known.some((challenge) => challenge?.day === play.challenge.day);
-      if (id !== this.openReveal?.challengeId && !unsent.has(id) && (doneElsewhere || old || replaced)) delete this.saved.plays[id];
+      if (id !== this.open?.reveal.challengeId && !unsent.has(id) && (doneElsewhere || old || replaced)) delete this.saved.plays[id];
     }
     const keep = new Set([...Object.keys(this.saved.plays), ...unsent, ...today.unseenReveals.map((one) => one.challengeId)]);
     for (const id of Object.keys(this.saved.seen)) if (!keep.has(id)) delete this.saved.seen[id];
@@ -352,7 +352,7 @@ export class Engine {
     this.saved = emptySaved();
     this.today = null;
     this.owned = null;
-    this.openReveal = null;
+    this.open = null;
     this.unsaved = false;
     for (const key of [...Object.values(this.keys), `user:${this.user.id}:clock`]) this.deps.storage.remove(key);
     this.clock.reset();
@@ -402,7 +402,7 @@ export class Engine {
       saved: this.saved,
       today: this.today,
       owned: this.owned,
-      view: whatToShow(this.saved, this.today, this.clock.now(), this.openReveal, this.unsaved),
+      view: whatToShow(this.saved, this.today, this.clock.now(), this.open, this.unsaved),
       connection: this.connection,
       syncing: this.syncing,
       unsent: this.saved.outbox.filter((item) => item.kind === 'complete').length,

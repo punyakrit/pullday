@@ -71,6 +71,9 @@ export type Reveal = {
   saved: boolean; // the server has it
 };
 
+/** The reveal on the screen. Seen: it was shown to the end on this phone. */
+export type Open = { reveal: Reveal; seen: boolean };
+
 export type View =
   | { kind: 'empty' } // nothing on the phone covers now
   | { kind: 'challenge'; challenge: Challenge; answers: Rarity[]; lateUntil: number | null; waiting: Reveal | null }
@@ -112,9 +115,13 @@ export function findReveal(saved: Saved, today: Today | null, challengeId: strin
 }
 
 /** The one place that decides what Today shows. */
-export function whatToShow(saved: Saved, today: Today | null, now: number, open: Reveal | null, unsaved = false): View {
-  // The newest word on it. The server stops listing a waiting card once it was seen, and it is still open here.
-  if (open) return { kind: 'reveal', reveal: findReveal(saved, today, open.challengeId) ?? open };
+export function whatToShow(saved: Saved, today: Today | null, now: number, open: Open | null, unsaved = false): View {
+  if (open) {
+    // The newest word on it. Once it was seen here the server stops listing it, and it stays until it is
+    // closed. Not listed and still sealed: it was seen on another phone.
+    const reveal = findReveal(saved, today, open.reveal.challengeId) ?? (open.seen ? open.reveal : null);
+    if (reveal) return { kind: 'reveal', reveal };
+  }
   const waiting = pendingReveals(saved, today, unsaved);
 
   // Yesterday's, if it was begun in time. Also one the server knows was begun, on another phone.
