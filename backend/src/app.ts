@@ -10,6 +10,7 @@ import { makePayments } from './payments.ts';
 import type { StripeApi } from './stripe.ts';
 import { type ImageOptions, type Width, imageStore } from './images.ts';
 import { resetAccount } from './seed.ts';
+import * as shop from './shop.ts';
 import { enableDevOffset, now } from './time.ts';
 import { changeTimezone } from './timezone.ts';
 
@@ -176,6 +177,20 @@ export function buildApp(options: {
       return { received: true };
     });
   });
+
+  // Buying a freeze
+
+  app.post<{ Body: { id: string } }>(
+    '/freezes/purchases',
+    { schema: { body: object({ id: { type: 'string', pattern: UUID } }) } },
+    async (request) => asUser(request, (db, user) => shop.begin(db, user, request.body.id)),
+  );
+  // Quiet: the money is gone and the freeze is owed, whatever else the phone has not sent yet.
+  app.post<{ Params: { id: string }; Body: { transactionId: string } }>(
+    '/freezes/purchases/:id/confirm',
+    { config: { quiet: true }, schema: { params: idParam, body: object({ transactionId: { type: 'string', minLength: 1, maxLength: 200 } }) } },
+    async (request) => asUser(request, (db, user) => shop.confirm(db, user, request.params.id, request.body.transactionId)),
+  );
 
   // Cards
 

@@ -84,8 +84,27 @@ export async function settle(db: Db, user: User, zones: Zone[], at: Date): Promi
   user.settled_through = settled;
 }
 
+/** Held now: bought, not used and not owed back. */
+export async function countFreezes(db: Db, userId: string): Promise<number> {
+  const found = await db.query<{ count: number }>(
+    'select count(*)::int as count from freezes where user_id = $1 and used_on_day is null and refund_due_at is null',
+    [userId],
+  );
+  return found.rows[0]!.count;
+}
+
+/** The limit is 2. Any more than that is owed as money instead: `first` if it is one of them, then the oldest. */
+export async function refundExtra(db: Db, userId: string, at: Date, first: string | null = null): Promise<void> {
+  await db.query(
+    `update freezes set refund_due_at = $2 where id in (
+       select id from freezes where user_id = $1 and used_on_day is null and refund_due_at is null
+        order by id is not distinct from $4::uuid, purchased_at desc, id desc offset $3)`,
+    [userId, at, MAX_FREEZES, first],
+  );
+}
+
 /**
- * A day in the past turned out to be done. Undo what was settled from that day on and settle
+ * Something about the past turned out to be different: a day was done, or a freeze was bought. Undo what was settled from that day on and settle
  * it again, so the result is what it would have been had we known at the time.
  */
 export async function replay(db: Db, user: User, zones: Zone[], from: Day, at: Date): Promise<void> {
@@ -98,14 +117,6 @@ export async function replay(db: Db, user: User, zones: Zone[], from: Day, at: D
   ]);
   user.settled_through = addDays(from, -1);
   await settle(db, user, zones, at);
-  // A freeze that came back while 2 newer ones are held would make 3. The limit is 2, so it is
-  // owed as money instead.
-  await db.query(
-    `update freezes set refund_due_at = $2 where id in (
-       select id from freezes where user_id = $1 and used_on_day is null and refund_due_at is null
-        order by purchased_at desc, id desc offset $3)`,
-    [user.id, at, MAX_FREEZES],
-  );
 }
 
 /** The oldest break that can still be won back. It covers every later one. */
@@ -162,15 +173,18 @@ export async function coverBreak(db: Db, user: User, missedDay: Day, at: Date): 
 export async function getStreak(db: Db, user: User, today: Day, at: Date) {
   const records = await getRecords(db, user.id);
   const broken = await openBreak(db, user.id, at);
-  const freezes = await db.query<{ count: number }>(
-    'select count(*)::int as count from freezes where user_id = $1 and used_on_day is null and refund_due_at is null',
+  const used = await db.query<{ day: Day }>(
+    'select used_on_day as day from freezes where user_id = $1 and used_on_day is not null order by used_on_day desc limit 30',
     [user.id],
   );
+  const refunds = await db.query<{ id: string }>('select id from freezes where user_id = $1 and refund_due_at is not null', [user.id]);
   const recent = [...records].sort().slice(-30);
   return {
     streak: countStreak(records, today, user.settled_through),
     todayDone: records.get(today) === 'done',
-    freezes: freezes.rows[0]!.count,
+    freezes: await countFreezes(db, user.id),
+    freezesUsed: used.rows.map((row) => row.day), // to tell about, newest first
+    freezeRefunds: refunds.rows.map((row) => row.id),
     winBack: broken && {
       missedDay: broken.missed_day,
       lostStreak: countStreak(records, addDays(broken.missed_day, -1), user.settled_through),

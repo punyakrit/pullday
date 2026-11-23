@@ -4,7 +4,7 @@ import type { Db } from './db.ts';
 import { type Day, type Zone, addDays, currentDay, dayEnd, dayStart, judge, nextDay } from './days.ts';
 import { ApiError } from './errors.ts';
 import { owePaymentsFixedLate } from './payments.ts';
-import { getStreak, replay, settle } from './streak.ts';
+import { getStreak, refundExtra, replay, settle } from './streak.ts';
 import { zoneStatus } from './timezone.ts';
 import { now } from './time.ts';
 
@@ -241,6 +241,7 @@ export async function complete(db: Db, user: User, deviceId: string, challengeId
     [user.id, challenge.day],
   );
   await replay(db, user, zones, challenge.day, at);
+  await refundExtra(db, user.id, at); // a freeze that came back may make 3
   await owePaymentsFixedLate(db, user.id, at);
   return result(db, user, zones, { ...challenge, completed_at: at, answers, reward_card_id: reward }, false);
 }
