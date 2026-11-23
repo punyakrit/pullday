@@ -1,4 +1,4 @@
-import type { Card, Challenge, Rarity, Today } from './types';
+import type { Card, Challenge, Rarity, Today, WinBack } from './types';
 
 export const CARDS = 8;
 export const GRACE_MS = 60 * 60_000; // a begun challenge can be finished this long after its day
@@ -23,6 +23,9 @@ export type PaymentState = 'checking' | 'processing' | 'bank' | 'declined' | 'ca
 
 /** Saved before the payment sheet opens, so that a phone that dies in the middle asks afterwards. */
 export type Payment = { id: string; missedDay: string; lostStreak: number; state: PaymentState; problem: string | null };
+
+/** It is about the break that is on offer, and not an earlier one. */
+export const isFor = (payment: Payment | null, offer: WinBack | null): boolean => payment !== null && payment.missedDay === offer?.missedDay;
 
 export type Notice = { id: string; text: string };
 

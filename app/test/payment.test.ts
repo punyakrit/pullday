@@ -3,7 +3,7 @@ import { describe, test } from 'node:test';
 import type { Engine } from '../src/core/engine';
 import { bannerFor } from '../src/core/banner';
 import { streakDays } from '../src/core/streakDays';
-import { emptySaved } from '../src/core/state';
+import { emptySaved, isFor } from '../src/core/state';
 import { HOUR, World, challenge, playAll, settle } from './fakes';
 
 const OFFER = { missedDay: '2026-11-22', lostStreak: 40, closesAt: '2026-11-25T00:00:00Z', priceCents: 499 };
@@ -210,6 +210,56 @@ describe('what Stripe says', () => {
     await engine.sheetClosed(false);
     assert.equal(state(engine), null);
     assert.deepEqual(notices(engine), []);
+  });
+});
+
+describe('a payment for an earlier break', () => {
+  const NEXT = { missedDay: '2026-11-25', lostStreak: 1, closesAt: '2026-11-28T00:00:00Z', priceCents: 499 };
+
+  /** Declined and never dismissed. The 48 hours pass, a day is played, the next one is missed. */
+  async function brokenAgain(before: State = 'declined') {
+    const { world, engine, stripe } = await broken();
+    await engine.beginPayment();
+    Object.assign(stripe, { state: before, problem: before === 'declined' ? 'Your card was declined.' : null });
+    await engine.sheetClosed(false);
+    world.clock = '2026-11-26T09:00:00Z';
+    const asked: string[] = [];
+    const respond = world.respond;
+    world.respond = (method, path, body) => {
+      if (path === '/today') return { status: 200, body: world.today({ winBack: NEXT }) };
+      if (path !== '/win-back') return respond(method, path, body);
+      const { missedDay } = body as { missedDay: string };
+      asked.push(missedDay);
+      if (missedDay !== NEXT.missedDay) return { status: 409, body: { error: 'no_win_back', message: 'There is no streak to win back.' } };
+      return { status: 200, body: { id: 'p2', missedDay, state: 'open', problem: null, clientSecret: 'secret2', publishableKey: 'pk_test_x' } };
+    };
+    await engine.sync();
+    await settle();
+    return { engine, asked };
+  }
+
+  test('the offer is for the new one, and pays for the new one', async () => {
+    const { engine, asked } = await brokenAgain();
+    assert.deepEqual(engine.getSnapshot().offer, NEXT);
+    assert.equal(isFor(engine.getSnapshot().payment, NEXT), false); // so it can be put away, and it does not say "try again"
+    assert.deepEqual(bannerFor(engine.getSnapshot()), { kind: 'winBack', lostStreak: 1 });
+    assert.equal((await engine.beginPayment())?.clientSecret, 'secret2');
+    assert.deepEqual(asked, ['2026-11-25']);
+    assert.deepEqual([engine.getSnapshot().saved.payment?.id, engine.getSnapshot().saved.payment?.missedDay], ['p2', '2026-11-25']);
+  });
+
+  test('it can be put away without touching the offer', async () => {
+    const { engine } = await brokenAgain('canceled');
+    engine.dismissPayment();
+    assert.equal(state(engine), null);
+    assert.deepEqual(engine.getSnapshot().offer, NEXT);
+  });
+
+  test('one that is still under way is gone on with first', async () => {
+    const { engine, asked } = await brokenAgain('bank');
+    assert.equal(engine.getSnapshot().offer, null);
+    await assert.rejects(engine.beginPayment(), /no streak/);
+    assert.deepEqual(asked, ['2026-11-22']);
   });
 });
 

@@ -3,7 +3,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Engine, Snapshot } from '../core/engine';
 import { dateText, money } from '../core/prices';
-import type { Payment } from '../core/state';
+import { type Payment, isFor } from '../core/state';
 import { type DayStatus, type StreakDay, statusName, streakDays } from '../core/streakDays';
 import type { Today, WinBack } from '../core/types';
 import { useSession } from '../lib/session';
@@ -54,7 +54,7 @@ function Streak({ engine }: { engine: Engine }) {
             </Panel>
           ))}
           {payment && <PaymentPanel engine={engine} payment={payment} offer={offer} />}
-          {offer && <Offer engine={engine} offer={offer} ready={today.paymentsReady} again={payment !== null} />}
+          {offer && <Offer engine={engine} offer={offer} ready={today.paymentsReady} again={isFor(payment, offer)} />}
           <Days days={useDays(today, saved)} />
           <Panel>
             <View style={styles.row}>
@@ -161,12 +161,14 @@ function PaymentPanel({ engine, payment, offer }: { engine: Engine; payment: Pay
     );
   }
   const declined = payment.state === 'declined';
+  const current = isFor(payment, offer); // then the offer is the way on
   return (
     <Panel>
       <Words kind="heading">{declined ? 'The payment failed' : payment.state === 'canceled' ? 'This payment was closed' : 'Not paid'}</Words>
       {declined && payment.problem && <Words>{payment.problem}</Words>}
       <Words>No money was taken.</Words>
-      {!offer && <Button kind="quiet" title="OK" onPress={() => engine.dismissPayment()} />}
+      {offer && !current && <Words kind="soft">It was for the streak that broke on {dateText(payment.missedDay)}.</Words>}
+      {!current && <Button kind="quiet" title="OK" onPress={() => engine.dismissPayment()} />}
     </Panel>
   );
 }

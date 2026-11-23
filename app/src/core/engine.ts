@@ -369,9 +369,11 @@ export class Engine {
   }
 
   private async startPayment(): Promise<Sheet | null> {
-    const missedDay = this.saved.payment?.missedDay ?? this.today?.winBack?.missedDay;
-    const lostStreak = this.saved.payment?.lostStreak ?? this.today?.winBack?.lostStreak ?? 0;
-    if (!missedDay) throw new Refused(409, 'no_win_back', 'There is no streak to win back.');
+    // One that is under way is gone on with. One that is over, perhaps for another break, must not stand in the way.
+    const winBack = this.today?.winBack ?? null;
+    const wanted = this.isPending() ? this.saved.payment : (winBack ?? this.saved.payment);
+    if (!wanted) throw new Refused(409, 'no_win_back', 'There is no streak to win back.');
+    const { missedDay, lostStreak } = wanted;
     // It counts as contact, so it waits for everything else like any other call.
     const { data } = await this.ask<Paid & { clientSecret: string | null; publishableKey: string }>('POST', '/win-back', { missedDay });
     this.saved.payment = { id: data.id, missedDay, lostStreak, state: 'checking', problem: null };

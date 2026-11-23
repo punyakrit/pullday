@@ -1,5 +1,5 @@
 import type { Snapshot } from './engine';
-import type { PaymentState } from './state';
+import { type PaymentState, isFor } from './state';
 
 export type Banner =
   | { kind: 'full' }
@@ -28,7 +28,8 @@ export function bannerFor({
   if (unsaved) return { kind: 'full' };
   const notice = saved.notices[0];
   if (notice) return { kind: 'notice', ...notice };
-  if (payment && payment.state !== 'unpaid') return { kind: 'payment', state: payment.state };
+  // While there is an offer no payment is under way. What became of one for an earlier break is not the news.
+  if (payment && payment.state !== 'unpaid' && (!offer || isFor(payment, offer))) return { kind: 'payment', state: payment.state };
   if (view.kind === 'challenge' && view.lateUntil !== null) return { kind: 'late', until: view.lateUntil };
   if (view.kind === 'challenge' && view.waiting) return { kind: 'waiting', challengeId: view.waiting.challengeId };
   if (offer) return { kind: 'winBack', lostStreak: offer.lostStreak };

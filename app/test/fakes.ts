@@ -47,7 +47,7 @@ export class World {
   signedOut = 0;
   backOnline = 0;
   timers: { work: () => void; ms: number }[] = [];
-  respond: (method: string, path: string) => { status: number; body: unknown } | 'down' = () => ({ status: 200, body: {} });
+  respond: (method: string, path: string, body?: unknown) => { status: number; body: unknown } | 'down' = () => ({ status: 200, body: {} });
 
   constructor(iso: string) {
     this.time = Date.parse(iso);
@@ -83,7 +83,7 @@ export class World {
     const path = String(url).replace('http://server', '');
     const method = init?.method ?? 'GET';
     if (!this.online) throw new TypeError('Network request failed');
-    const reply = this.respond(method, path);
+    const reply = this.respond(method, path, init?.body ? JSON.parse(String(init.body)) : undefined);
     if (reply === 'down') throw new TypeError('Network request failed');
     this.calls.push(`${method} ${path}`);
     const text = typeof reply.body === 'string' ? reply.body : JSON.stringify(reply.body);
