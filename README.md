@@ -35,7 +35,7 @@ adb reverse tcp:4000 tcp:4000
 npx expo run:android --variant release
 ```
 
-That is a real release build against the backend on this computer, about 6 minutes the first time. The last login page row fills in a test account with a tap. The dev menu is under the person icon, for the six test accounts, in every build.
+That is a real release build against the backend on this computer, about 6 minutes the first time. The log in screen has a row of test accounts that fill in with a tap. The dev menu is under the person icon, for the six test accounts, in every build.
 
 For a build that reloads as you edit: `npm run android`, with `adb reverse tcp:8081 tcp:8081` as well.
 

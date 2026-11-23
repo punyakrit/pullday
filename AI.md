@@ -21,7 +21,7 @@ On the phone (step 2):
 - **The sync gave up** when it joined a send that began before the network came back. The app's own tests found it.
 - **The reveal was sized from the window**, so a banner pushed it over its own caption. It also said "Added to your collection" while offline.
 - **Each swipe mounted about 30 views**, because every card carried its own stamps. Now one set follows the top card.
-- **Every size of every picture was kept**, which would have filled the deployed disk. And a picture that failed to decode once was called missing for an hour. One real card was hidden that way.
+- **Every size of every picture was kept**, which would have filled the deployed disk. And a picture that failed to decode once was called missing for an hour. The warming run skipped one real card that way.
 - **AI nearly drew the wrong conclusion from frame timings.** They looked bad until the same test on Android's Settings app scored the same.
 
 On the backend (step 1):
@@ -40,7 +40,6 @@ On the backend (step 1):
 
 - Per-card stamps and marks, and mounting cards as they were needed.
 - Testing in the dev client. Its menus were in the way, so everything was checked in a release build.
-- `Image.prefetch` for the reveal card. It only fills the disk. The reveal decodes the picture itself before the card may turn.
 - A branch in the "which day is it" code for a zone change that has not started. It could never run.
 - The first way of choosing a reward, which only preferred cards that were not promised. Now it avoids them when promising and may take one when finishing.
 
