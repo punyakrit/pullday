@@ -18,10 +18,10 @@ async function urlFromCatalogue(id: string): Promise<string | null> {
 const defaults = {
   cacheDir: config.imageCacheDir,
   urlFor: urlFromCatalogue,
-  timeoutMs: 30_000, // the slowest origin takes about 20 seconds
+  timeoutMs: 45_000, // a 14 MB original takes about 20 seconds here, longer on a slow line
   maxBytes: 20 * 1024 * 1024, // the largest original is 14.4 MB
   maxPixels: 100_000_000,
-  parallel: 4, // decoding is heavy; more at once is slower
+  parallel: 6, // enough that a few slow originals do not hold up the rest
 };
 export type ImageOptions = typeof defaults;
 
