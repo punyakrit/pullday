@@ -6,8 +6,8 @@
     "scheme": "pulldaytest",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#0F3D3C",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F4F4F4",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "dev.pullday.testapp",
@@ -19,7 +19,7 @@
       "package": "dev.pullday.testapp",
       "allowBackup": false,
       "adaptiveIcon": {
-        "backgroundColor": "#0F3D3C",
+        "backgroundColor": "#F4F4F4",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       }
@@ -37,7 +37,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0F3D3C",
+          "backgroundColor": "#F4F4F4",
           "image": "./assets/splash-icon.png",
           "imageWidth": 160
         }
