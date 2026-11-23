@@ -24,7 +24,7 @@ import { CardImage, describeCard } from '../ui/CardImage';
 import { Icon, Shape } from '../ui/Icons';
 import { Words } from '../ui/Words';
 import { CARD_RATIO, colors, rarityColor, rarityName, space } from '../ui/theme';
-import { decide, give, liftSpeed, pull } from './swipe';
+import { decide, flickTime, give, liftSpeed, pull } from './swipe';
 
 type Props = {
   challenge: Challenge;
@@ -232,6 +232,7 @@ const Surface = memo(function Surface({ places, top, size, throwCard, begin }: S
   const touch = useSharedValue({ x: 0, y: 0, at: 0 }); // where the finger went down
   const armed = useSharedValue<Rarity | ''>('');
   const moved = useSharedValue(false);
+  const steps = useSharedValue(0); // how often it was seen moving
 
   const pan = usePanGesture({
     maxPointers: 1,
@@ -241,6 +242,7 @@ const Surface = memo(function Surface({ places, top, size, throwCard, begin }: S
       'worklet';
       touch.value = { x: event.absoluteX, y: event.absoluteY, at: performance.now() };
       moved.value = false;
+      steps.value = 0;
       scheduleOnRN(begin);
     },
     onActivate: () => {
@@ -259,6 +261,7 @@ const Surface = memo(function Surface({ places, top, size, throwCard, begin }: S
     onUpdate: (event) => {
       'worklet';
       const place = places[held.value];
+      steps.value++;
       if (!place || held.value !== top.value) return; // a button threw it meanwhile
       // From where the finger went down, so the card is under it from the first pixel.
       place.x.value = start.value.x + event.absoluteX - touch.value.x;
@@ -282,7 +285,7 @@ const Surface = memo(function Surface({ places, top, size, throwCard, begin }: S
       // The end of a fast flick is only in this event. The last update may be from before it.
       const movedX = event.absoluteX - touch.value.x;
       const movedY = event.absoluteY - touch.value.y;
-      const elapsed = performance.now() - touch.value.at;
+      const elapsed = flickTime(performance.now() - touch.value.at, steps.value);
       const vx = liftSpeed(event.velocityX, movedX, elapsed);
       const vy = liftSpeed(event.velocityY, movedY, elapsed);
       const going = event.canceled ? null : decide(start.value.x + movedX, start.value.y + movedY, vx, vy, width, height);
@@ -302,7 +305,7 @@ const Surface = memo(function Surface({ places, top, size, throwCard, begin }: S
       // It lifted before a single move was seen. Somewhere else means a flick on a busy phone.
       const movedX = event.absoluteX - here.x;
       const movedY = event.absoluteY - here.y;
-      const elapsed = performance.now() - at;
+      const elapsed = flickTime(performance.now() - at, 0);
       const vx = liftSpeed(0, movedX, elapsed);
       const vy = liftSpeed(0, movedY, elapsed);
       const { width, height } = size.value;

@@ -33,6 +33,15 @@ export function liftSpeed(reported: number, moved: number, elapsedMs: number): n
   return Math.abs(average) > Math.abs(reported) ? average : reported;
 }
 
+/**
+ * How long a gesture took, as far as it matters. A busy phone hears of it late and all at once, and then the
+ * clock says it was slow. But a slow drag is seen in many steps: one that was hardly seen was a flick.
+ */
+export function flickTime(elapsedMs: number, steps: number): number {
+  'worklet';
+  return steps <= 4 ? Math.min(elapsedMs, 250) : elapsedMs;
+}
+
 /** Down is no direction. The card gives a little and no more, so it never goes under the piles. */
 export function give(y: number): number {
   'worklet';

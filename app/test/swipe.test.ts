@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { give, decide, liftSpeed, pull } from '../src/today/swipe';
+import { flickTime, give, decide, liftSpeed, pull } from '../src/today/swipe';
 
 const W = 360;
 const H = 480;
@@ -69,6 +69,17 @@ describe('speed when the finger lifts', () => {
   test('a tap is not a swipe', () => {
     assert.equal(go(3, 2, liftSpeed(0, 3, 40), liftSpeed(0, 2, 40)), null);
   });
+});
+
+test('a flick that a busy phone heard of late still counts, a slow drag does not become one', () => {
+  const going = (elapsed: number, steps: number) => {
+    const time = flickTime(elapsed, steps);
+    return decide(40, 0, liftSpeed(0, 40, time), 0, 360, 480);
+  };
+  assert.equal(going(60, 4), 'rare');
+  assert.equal(going(700, 1), 'rare'); // heard 700 ms late, seen once
+  assert.equal(going(700, 30), null); // a slow drag of 40 points, let go: it comes back
+  assert.equal(decide(15, 0, liftSpeed(0, 15, flickTime(700, 1)), 0, 360, 480), null); // the width of a fingertip is nothing
 });
 
 test('down is no direction: the card gives a little, and never reaches the piles', () => {
