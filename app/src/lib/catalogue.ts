@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Engine } from '../core/engine';
+import { CATALOGUE, readRow, writeRow } from '../core/rows';
 import type { Card } from '../core/types';
 import { storage } from './storage';
 
@@ -9,8 +10,8 @@ let byId: Map<string, Card> | null = null;
 
 function read(): Map<string, Card> | null {
   if (byId) return byId;
-  const text = storage.get(CARDS);
-  if (text) byId = new Map((JSON.parse(text) as Card[]).map((card) => [card.id, card]));
+  const cards = readRow(storage, CARDS, CATALOGUE).value; // not usable: downloaded again
+  if (cards) byId = new Map(cards.map((card) => [card.id, card]));
   return byId;
 }
 
@@ -25,7 +26,7 @@ export function useCatalogue(engine: Engine): Map<string, Card> | null {
       .then((reply) => {
         if (reply.notModified) return;
         byId = new Map(reply.data.cards.map((card) => [card.id, card]));
-        storage.set(CARDS, JSON.stringify(reply.data.cards));
+        writeRow(storage, CARDS, CATALOGUE, reply.data.cards);
         if (reply.etag) storage.set(ETAG, reply.etag);
         if (live) setCards(byId);
       })

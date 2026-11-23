@@ -1,3 +1,4 @@
+import { CLOCK, readRow, writeRow } from './rows';
 import type { Storage } from './types';
 
 /**
@@ -15,14 +16,14 @@ export class ServerClock {
     this.storage = storage;
     this.key = key;
     this.local = local;
-    const saved = storage.get(key);
-    if (saved) ({ offset: this.offset, floor: this.floor } = JSON.parse(saved) as { offset: number; floor: number });
+    const saved = readRow(storage, key, CLOCK).value;
+    if (saved) ({ offset: this.offset, floor: this.floor } = saved);
   }
 
   sync(serverTime: string, sentAt: number, receivedAt: number): void {
     this.floor = Date.parse(serverTime);
     this.offset = this.floor - (sentAt + receivedAt) / 2;
-    this.storage.set(this.key, JSON.stringify({ offset: this.offset, floor: this.floor }));
+    writeRow(this.storage, this.key, CLOCK, { offset: this.offset, floor: this.floor });
   }
 
   reset(): void {

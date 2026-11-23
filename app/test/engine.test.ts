@@ -42,7 +42,7 @@ describe('the loop', () => {
     });
     playAll(engine, today.challenge);
     stop();
-    const { outbox } = JSON.parse(onDisk[0]!) as { outbox: { kind: string }[] };
+    const { outbox } = (JSON.parse(onDisk[0]!) as { value: { outbox: { kind: string }[] } }).value;
     assert.deepEqual(outbox.map((item) => item.kind), ['start', 'complete']);
   });
 

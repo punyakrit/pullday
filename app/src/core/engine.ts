@@ -1,5 +1,6 @@
 import { type Api, Refused, SignedOut, Unreachable } from './api';
 import { ServerClock } from './clock';
+import { OWNED, SAVED, TODAY, readRow, writeRow } from './rows';
 import {
   CARDS,
   OFFLINE_MS,
@@ -77,17 +78,18 @@ export class Engine {
   private cancelRetry: (() => void) | null = null;
   private stopped = false;
   private readonly deps: Deps;
-  private readonly keys: { saved: string; today: string; owned: string };
+  private readonly keys: { saved: string; today: string; owned: string; aside: string };
 
   constructor(deps: Deps) {
     this.deps = deps;
     this.user = deps.user;
     const base = `user:${deps.user.id}`;
-    this.keys = { saved: `${base}:saved`, today: `${base}:today`, owned: `${base}:owned` };
+    this.keys = { saved: `${base}:saved`, today: `${base}:today`, owned: `${base}:owned`, aside: `${base}:saved:aside` };
     this.clock = new ServerClock(deps.storage, `${base}:clock`, deps.local);
-    this.saved = this.read<Saved>(this.keys.saved) ?? emptySaved();
-    this.today = this.read<Today>(this.keys.today);
-    this.owned = this.read<OwnedCard[]>(this.keys.owned);
+    // These two can be fetched again.
+    this.today = readRow(deps.storage, this.keys.today, TODAY).value;
+    this.owned = readRow(deps.storage, this.keys.owned, OWNED).value;
+    this.saved = this.restore();
     this.snapshot = this.build();
   }
 
@@ -217,11 +219,11 @@ export class Engine {
     if (this.today) {
       const { streak, todayDone, freezes, winBack, recentDays } = data;
       this.today = { ...this.today, streak, todayDone, freezes, winBack, recentDays };
-      this.write(this.keys.today, this.today);
+      writeRow(this.deps.storage, this.keys.today, TODAY, this.today);
     }
     if (data.card && this.owned && !this.owned.some((one) => one.cardId === data.card!.id)) {
       this.owned = [{ cardId: data.card.id, acquiredAt: data.completedAt, revealSeenAt: null }, ...this.owned];
-      this.write(this.keys.owned, this.owned);
+      writeRow(this.deps.storage, this.keys.owned, OWNED, this.owned);
     }
   }
 
@@ -290,7 +292,7 @@ export class Engine {
       const { data: collection } = await this.deps.api.call<{ cards: OwnedCard[] }>('GET', '/collection');
       this.owned = collection.cards;
       this.freshAt = this.deps.local();
-      this.write(this.keys.owned, this.owned);
+      writeRow(this.deps.storage, this.keys.owned, OWNED, this.owned);
     } catch (err) {
       if (!(err instanceof Refused)) this.failed(err);
     }
@@ -314,7 +316,7 @@ export class Engine {
   private applyToday(today: Today, sentAt: number, receivedAt: number): void {
     this.clock.sync(today.now, sentAt, receivedAt);
     this.today = today;
-    this.write(this.keys.today, today);
+    writeRow(this.deps.storage, this.keys.today, TODAY, today);
     const now = this.clock.now();
     const unsent = new Set(this.saved.outbox.map((item) => item.challengeId));
     const known = [today.challenge, today.tomorrow, today.resume];
@@ -413,17 +415,18 @@ export class Engine {
 
   /** One row, one write: what was played and what is unsent can never disagree. */
   private save(): void {
-    this.write(this.keys.saved, this.saved);
+    writeRow(this.deps.storage, this.keys.saved, SAVED, this.saved);
     this.saved = { ...this.saved };
     this.publish();
   }
 
-  private read<T>(key: string): T | null {
-    const text = this.deps.storage.get(key);
-    return text ? (JSON.parse(text) as T) : null;
-  }
-
-  private write(key: string, value: unknown): void {
-    this.deps.storage.set(key, JSON.stringify(value));
+  /** A row that cannot be used must not stop the app from opening. It is kept aside, and said. */
+  private restore(): Saved {
+    const { storage } = this.deps;
+    const { value, unusable } = readRow(storage, this.keys.saved, SAVED);
+    if (!unusable) return value ?? emptySaved();
+    storage.set(this.keys.aside, storage.get(this.keys.saved)!);
+    const text = 'This phone could not read what it had saved. A challenge that was not sent yet may be missing.';
+    return { ...emptySaved(), notices: [{ id: 'unreadable', text }] };
   }
 }
