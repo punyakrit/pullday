@@ -1,6 +1,6 @@
 # Decisions
 
-Status: steps 1 and 2 of 8 in `docs/PLAN.md`. The backend daily loop and the app's daily loop are built. Tested on an Android emulator (release build) and an iOS simulator. **Not yet on a real phone.**
+Status: steps 1, 2 and 4 of 8 in `docs/PLAN.md`: the backend, the daily loop, and the collection with card details. **Nothing has been tested on a real phone yet.** Only on an Android emulator and an iOS simulator, with release builds. `brief.md` asks for a real phone, so this is open.
 
 ## What was built first, and why
 
@@ -28,6 +28,10 @@ Six of the nine bad reviews are about days, money or lost progress. Those are wr
 
 **The effects are cheap on purpose.** Gradients and transforms, no blur, no shadow, no particles made in JavaScript. The picture is decoded before the card may turn.
 
+**The collection shows all 1,993, yours in colour.** In binder order, with a switch to only yours. Small pictures on disk, grey ones made by the server. The name is under every picture, so a cell is never empty. It says "no picture" only if the server says so, and "couldn't load" otherwise, and then tries again.
+
+**Every read goes through one gate.** A card opened at 12:02am must not cost a day finished on a plane. A test fails if any other file talks to the server.
+
 **Only our own 401 logs out.** Hotel wifi, proxies, 5xx and no network never do.
 
 ## Where instructions and brief.md pulled apart
@@ -36,11 +40,12 @@ Binder screens wait, but `collector@` must have 5 pages, so the table and seed e
 
 ## Cut or not built yet
 
-Streak screen, win back, shop, the full catalogue, card details on the phone, binder (the planned cut). No password reset, email check, rate limit or session expiry.
+Streak screen, win back, shop, binder (the planned cut). No search. No password reset, email check, rate limit or session expiry.
 
 ## Known limits and what is still broken
 
-- Swipe smoothness is not measured on a real phone. On the emulator, dragging a card and dragging Android's own Settings score the same, so it says nothing.
+- Smoothness is only measured on an emulator (`docs/MEASUREMENTS.md`): no bare area on a fast scroll, and frame numbers that say little. The build does not install on a 32 bit phone.
+- On iOS the launch screen still shows the template's drawing.
 - A phone kept offline, or made to send nothing but its outbox, can claim a day up to 48 hours late.
 - The bundle holds the answers and the reward, so a curious person can read them.
 - Offline, the phone chooses the day from its own clock. Moved forward it shows tomorrow, the server refuses it, and the app says so.

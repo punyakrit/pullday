@@ -8,6 +8,8 @@ Step 0 and 1, all of it: the plan, the backend code, SQL, seeds, scripts, tests 
 
 AI also checked the data (1,993 cards, 66 with no number, 799 with no variety, prices end 2026-11-02), probed every image link (27 broken, largest 14.4 MB, some with the wrong content type) and read the current docs for Fastify, sharp, node-postgres and node:test before using them.
 
+Step 4, all of it: the collection, card details, chart, their tests and the measurements. The owner asked for the rules that matter: why a picture failed, and the one gate.
+
 Step 2, all of it: the app (Expo SDK 58), its tests, the icons, the image warming script and the Dockerfile. The owner chose the loop, the rules for the outbox and what the dev menu must do. AI chose the look. The Gesture Handler docs did not load, so its version 3 API was read from the installed type files.
 
 ## Where AI was wrong
@@ -15,6 +17,10 @@ Step 2, all of it: the app (Expo SDK 58), its tests, the icons, the image warmin
 On the phone (step 4):
 
 - **One failed picture was never tried again**, and it said "No picture of this card" when the connection was the problem. The owner reported it.
+- **A read gave up with a send that was about to fail**, when the network had just come back. The refresh already handled it, opening a card did not. A new test found it.
+- **Opening a card showed a bare tile**, while its small picture was already in memory. Seen in the recording.
+- **A phone first opened with no connection never fetched the catalogue later.** AI found it while rewriting the screen.
+- **AI's first slow-scroll count was wrong**: it called frames still when everything on them was a dark tile. And one set of measurements was three times worse than the one before with the same build. Both are written down.
 - **AI called the 45 odd-shaped pictures bare cards** from their proportions. Looking at them: 44 are stand-in photos from a stock site and one is a bare card.
 
 On the phone (step 2):

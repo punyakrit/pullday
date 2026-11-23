@@ -3,7 +3,7 @@
 A card collecting app built around a daily habit. This is a test app for a work trial. It is not a real product and is not in any store.
 
 - `backend/` Node + TypeScript API on Postgres. Done for the daily loop. Payments and binder are not built yet.
-- `app/` React Native + TypeScript, Expo SDK 58. The daily loop: log in, challenge, reveal, collection, dev menu.
+- `app/` React Native + TypeScript, Expo SDK 58. The daily loop: log in, challenge, reveal, dev menu. The collection with every card, and card details. Measurements are in `docs/MEASUREMENTS.md`.
 - `docs/PLAN.md` build order. `DECISIONS.md` what and why. `AI.md` how AI was used.
 
 ## Run the backend
