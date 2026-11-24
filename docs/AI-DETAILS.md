@@ -22,6 +22,14 @@ Step 2, all of it: the app (Expo SDK 58), its tests, the icons, the image warmin
 
 ## Where AI was wrong
 
+After a full test of the Android build, which the owner brought:
+
+- **A new font size, language or bold text in Settings, and the next tap crashed the app.** Expo Router's exported `router` is one object for the process. The recreated screen binds it, then the old one unmounts and unbinds it for good. AI used it everywhere. Now each screen uses its own, and a test refuses the shared one.
+- **The icon closed Stripe's sheet and the 3D Secure page.** MainActivity is singleTask, and AI had only tried leaving and coming back from recents.
+- **AI's first fix for the font size did not work**: the app stayed alive, but text kept its old size until the next screen. It took four tries, two of them in the wrong place.
+- **AI's icon fix broke Back**: it ended the app's screen instead of leaving it open. Found by counting how often the app was made, before it was committed.
+- **AI took an old iOS build for the new one**, because making the project anew had removed its pods and nothing was built.
+
 After step 8:
 
 - **The last swipe could end on an empty screen.** The owner found it on a real phone, a OnePlus. The account was reset on the server while the app was open, so the finish got 404. The app deleted the play, said nothing and did not ask for `/today`, and the deck kept its own 8 answers. Any refused finish ended like that. AI had a test called "dropped without a word", which asserted it.
