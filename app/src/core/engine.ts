@@ -33,6 +33,7 @@ const UNPAID_CHECKS = 3;
 /** What the phone says about its own connection. */
 export type Net = { connected: boolean; reachable: boolean; kind: string };
 
+const NO_LONGER = 'The server no longer has that challenge, so it did not count.';
 const TOO_MANY = 'You can hold 2 freezes, so a third was not kept. Its $1.99 goes back to you.';
 
 export type Connection = 'unknown' | 'online' | 'offline' | 'trouble';
@@ -57,6 +58,8 @@ export type Snapshot = {
   payment: Payment | null;
   /** The freeze that is being bought right now. The button says so, and nothing else needs to. */
   buying: string | null;
+  /** The session is over: this is the last there will be. */
+  ended: boolean;
   /** Only with nothing unsent, and not while a payment is under way. */
   offer: WinBack | null;
 };
@@ -101,6 +104,9 @@ export class Engine {
   private lastStreak: number | null;
   private open: Open | null = null;
   private connection: Connection = 'unknown';
+  private readonly gone = new Set<string>(); // challenges the server does not have, until it lists them again
+  private refusedNow = false; // by the send that is under way
+  private askToday = false; // what we show is wrong, and /today was not heard since
   private streakMissed = false; // the last call that would have told us the streak failed
   private syncing = false;
   private unsaved = false;
@@ -156,18 +162,22 @@ export class Engine {
   nextChange = (): number | null => nextChange(this.saved, this.today, this.clock.now());
 
   stop(): void {
+    if (this.stopped) return;
     this.stopped = true;
     this.cancelRetry?.();
     this.cancelCheck?.();
     this.cancelConfirm?.();
     this.leaveStore();
     if (this.deps.store.getSheet()?.account === this.user.id) this.deps.store.cancel();
+    this.snapshot = this.build();
+    for (const listener of this.listeners) listener();
   }
 
   // Playing
 
   /** The first touch. The server hears about it as soon as it can. */
   begin(challenge: Challenge): void {
+    if (this.gone.has(challenge.id)) return; // a deck that is on its way out
     const play = this.playOf(challenge);
     if (play.begunAt !== null) return;
     play.begunAt = this.clock.now();
@@ -179,6 +189,7 @@ export class Engine {
 
   /** A swipe. Final. Saved before this returns. */
   answer(challenge: Challenge, index: number, rarity: Rarity): void {
+    if (this.gone.has(challenge.id)) return;
     this.begin(challenge);
     const play = this.playOf(challenge);
     if (index !== play.answers.length || isFinished(play)) return; // a swipe we already have
@@ -234,6 +245,9 @@ export class Engine {
   flush(): Promise<boolean> {
     this.flushing ??= this.sendAll().finally(() => {
       this.flushing = null;
+      if (!this.refusedNow) return;
+      this.refusedNow = false;
+      this.syncAgain();
     });
     return this.flushing;
   }
@@ -294,20 +308,34 @@ export class Engine {
     }
   }
 
-  /** The server said no. A refused start or reveal changes nothing. A refused finish must be told. */
+  /** The server said no. A refused finish must be told. A refused start or reveal changes nothing, unless there is no such challenge. */
   private refused(item: OutboxItem, err: Refused): void {
+    const missing = err.code === 'no_such_challenge';
+    if (missing || item.kind === 'complete') {
+      // What is on the screen is wrong. Asked as soon as everything is sent.
+      this.refusedNow = true;
+      this.askToday = true;
+    }
+    if (missing) this.gone.add(item.challengeId);
+    if (missing && item.kind === 'start' && !this.saved.outbox.some((other) => other.kind === 'complete' && other.challengeId === item.challengeId)) {
+      const lost = this.saved.plays[item.challengeId]?.answers.length ?? 0;
+      delete this.saved.plays[item.challengeId]; // it must not hold up the asking either
+      if (lost > 0) this.notice(NO_LONGER);
+    }
     if (item.kind !== 'complete') return;
     delete this.saved.plays[item.challengeId];
     if (this.open?.reveal.challengeId === item.challengeId) this.open = null;
     const wasShown = this.saved.seen[item.challengeId] === true;
     delete this.saved.seen[item.challengeId];
+    const lost = wasShown ? ' The card you saw was not added.' : '';
     if (err.code === 'too_late') {
-      const lost = wasShown ? ' The card you saw was not added.' : '';
       this.notice(`A challenge reached us after its day was over, so it did not count.${lost}`);
     } else if (err.code === 'too_early') {
       this.notice("That challenge is for tomorrow. Check the date on your phone. It will be here when it's time.");
-    } else if (err.code !== 'no_such_challenge') {
-      this.notice('One challenge could not be saved.');
+    } else if (missing) {
+      this.notice(`${NO_LONGER}${lost}`);
+    } else {
+      this.notice(`The server did not accept that challenge, so it did not count.${lost}`);
     }
   }
 
@@ -332,8 +360,23 @@ export class Engine {
     if (this.unsaved) this.save(); // there may be space again
     else this.publish();
     // Either way: the phone's clock can be moved back.
-    const fresh = Math.abs(this.deps.local() - this.freshAt) < FRESH_MS && this.connection === 'online';
+    const fresh = Math.abs(this.deps.local() - this.freshAt) < FRESH_MS && this.connection === 'online' && !this.askToday;
     if (!fresh || this.saved.outbox.length > 0) void this.sync();
+  }
+
+  /** Pressed by hand. What hangs is let go first: all of it may be sent twice. */
+  async tryAgain(): Promise<void> {
+    if (this.unsaved) this.save();
+    this.deps.api.giveUp(['/challenges/', '/today', '/collection']);
+    await this.flushing?.catch(() => {});
+    await this.syncRun;
+    await this.sync();
+  }
+
+  /** One that is already under way may have asked before. */
+  private syncAgain(): void {
+    if (!this.syncRun) return void this.sync();
+    void this.syncRun.then(() => (this.askToday ? this.sync() : undefined));
   }
 
   /** Outbox first, then everything else. Never throws. */
@@ -356,8 +399,11 @@ export class Engine {
     if (!(await this.sendFirst())) return;
     if (this.stopped || !mayContact(this.saved, this.clock.now())) return;
     let told = false;
+    let wanted = false;
     try {
       const { settled } = this;
+      wanted = this.askToday;
+      this.askToday = false;
       const { data, sentAt, receivedAt } = await this.deps.api.call<Today>('GET', '/today');
       this.heard();
       told = true;
@@ -371,6 +417,7 @@ export class Engine {
       writeRow(this.deps.storage, this.keys.owned, OWNED, this.owned);
     } catch (err) {
       if (!told) this.streakMissed = true;
+      if (!told && wanted) this.askToday = true; // still
       if (!(err instanceof Refused)) this.failed(err);
     }
   }
@@ -506,9 +553,8 @@ export class Engine {
     }
     this.save();
     if (this.saved.payment !== null) return;
-    // One that is already being asked may be from before the payment, so it is asked once more.
-    if (this.syncRun) void this.syncRun.then(() => this.sync());
-    else void this.sync();
+    this.askToday = true;
+    this.syncAgain();
   }
 
   /** Over, so this break is not offered again, also after a kill, until a /today that was asked later says otherwise. */
@@ -647,6 +693,7 @@ export class Engine {
 
   private applyToday(today: Today, sentAt: number, receivedAt: number): void {
     this.clock.sync(today.now, sentAt, receivedAt);
+    for (const one of [today.challenge, today.tomorrow, today.resume]) if (one) this.gone.delete(one.id);
     this.today = this.withoutSettled(today);
     writeRow(this.deps.storage, this.keys.today, TODAY, this.today);
     this.keepStreak(today.streak);
@@ -685,6 +732,8 @@ export class Engine {
     this.open = null;
     this.sheet = null;
     this.settled = null;
+    this.gone.clear();
+    this.askToday = false;
     this.cancelCheck?.();
     this.unsaved = false;
     this.deps.store.forget(this.user.id);
@@ -753,7 +802,7 @@ export class Engine {
       return;
     }
     this.connection = err instanceof Unreachable && err.kind === 'server' ? 'trouble' : 'offline';
-    if (this.saved.outbox.length > 0 && !this.stopped) {
+    if ((this.saved.outbox.length > 0 || this.askToday) && !this.stopped) {
       this.retryMs = Math.min(Math.max(3_000, this.retryMs * 2), 60_000);
       this.cancelRetry?.();
       this.cancelRetry = (this.deps.setTimer ?? realTimer)(() => void this.sync(), this.retryMs);
@@ -773,7 +822,7 @@ export class Engine {
       saved: this.saved,
       today: this.today,
       owned: this.owned,
-      view: whatToShow(this.saved, this.today, this.clock.now(), this.open, this.unsaved),
+      view: whatToShow(this.saved, this.today, this.clock.now(), this.open, this.unsaved, this.gone),
       connection: this.connection,
       syncing: this.syncing,
       unsent: this.saved.outbox.filter((item) => item.kind === 'complete').length,
@@ -782,6 +831,7 @@ export class Engine {
       streak: this.lastStreak,
       streakOld: this.connection === 'offline' || this.connection === 'trouble' || (!streakKnown && this.streakMissed),
       payment,
+      ended: this.stopped,
       buying: this.buying?.id ?? null,
       offer: offered && !this.isPending(payment) && this.clock.now() < Date.parse(winBack.closesAt) ? winBack : null,
     };

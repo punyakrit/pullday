@@ -153,8 +153,8 @@ export function findReveal(saved: Saved, today: Today | null, challengeId: strin
   return unseen ? { challengeId, day: unseen.day, card: unseen.card, score: null, saved: true } : null;
 }
 
-/** The one place that decides what Today shows. */
-export function whatToShow(saved: Saved, today: Today | null, now: number, open: Open | null, unsaved = false): View {
+/** The one place that decides what Today shows. `gone`: what the server said it does not have is never shown. */
+export function whatToShow(saved: Saved, today: Today | null, now: number, open: Open | null, unsaved = false, gone: ReadonlySet<string> = new Set()): View {
   if (open) {
     // The newest word on it. Once it was seen here the server stops listing it, and it stays until it is
     // closed. Not listed and still sealed: it was seen on another phone.
@@ -166,13 +166,13 @@ export function whatToShow(saved: Saved, today: Today | null, now: number, open:
   // Yesterday's, if it was begun in time. Also one the server knows was begun, on another phone.
   const held = Object.values(saved.plays).find((play) => now >= ends(play.challenge) && isHeldOpen(play, now));
   const resume = held?.challenge ?? today?.resume ?? null;
-  if (resume && now >= ends(resume) && now <= ends(resume) + GRACE_MS && !isFinished(saved.plays[resume.id])) {
+  if (resume && !gone.has(resume.id) && now >= ends(resume) && now <= ends(resume) + GRACE_MS && !isFinished(saved.plays[resume.id])) {
     const answers = saved.plays[resume.id]?.answers ?? [];
     return { kind: 'challenge', challenge: resume, answers, lateUntil: ends(resume) + GRACE_MS, waiting: waiting[0] ?? null };
   }
 
   const current = [today?.challenge, today?.tomorrow].find(
-    (challenge) => challenge && Date.parse(challenge.startsAt) <= now && now < ends(challenge),
+    (challenge) => challenge && !gone.has(challenge.id) && Date.parse(challenge.startsAt) <= now && now < ends(challenge),
   );
   if (!current) return { kind: 'empty' };
   const play = saved.plays[current.id];

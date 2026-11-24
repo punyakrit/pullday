@@ -392,9 +392,10 @@ describe('what the server refuses', () => {
     assert.ok(shown.kind === 'challenge' && shown.challenge.day === '2026-11-24');
   });
 
-  test('an account that was reset: dropped without a word', async () => {
+  test('an account that was reset: said, in one line', async () => {
     const after = await refuse('no_such_challenge', false);
-    assert.deepEqual(after.saved.notices, []);
+    assert.equal(after.saved.notices.length, 1);
+    assert.match(after.saved.notices[0]!.text, /no longer has that challenge/);
     assert.equal(after.view.kind, 'challenge');
   });
 

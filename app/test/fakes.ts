@@ -43,6 +43,8 @@ export function challenge(day: string, over: Partial<Challenge> = {}): Challenge
 export class World {
   time: number;
   online = true;
+  /** Calls whose path has this in it get no answer, until they are given up. */
+  hangs: string | null = null;
   storage = new MemoryStorage();
   calls: string[] = [];
   signedOut = 0;
@@ -86,6 +88,10 @@ export class World {
     const path = String(url).replace('http://server', '');
     const method = init?.method ?? 'GET';
     if (!this.online) throw new TypeError('Network request failed');
+    if (this.hangs !== null && path.includes(this.hangs)) {
+      this.calls.push(`${method} ${path} hangs`);
+      return new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('Aborted'))));
+    }
     const reply = this.respond(method, path, init?.body ? JSON.parse(String(init.body)) : undefined);
     if (reply === 'down') throw new TypeError('Network request failed');
     this.calls.push(`${method} ${path}`);

@@ -31,6 +31,7 @@ export class Api {
   pretendOffline = false;
   readonly baseUrl: string;
   private readonly options: Options;
+  private readonly running = new Map<AbortController, string>();
 
   constructor(options: Options) {
     this.options = options;
@@ -47,11 +48,17 @@ export class Api {
     this.pretendOffline = false;
   }
 
+  /** Calls that hang are let go, so they can be made again. Only those that may be repeated. */
+  giveUp(paths: string[]): void {
+    for (const [abort, path] of this.running) if (paths.some((start) => path.startsWith(start))) abort.abort();
+  }
+
   async call<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: object, headers: Record<string, string> = {}): Promise<Reply<T>> {
     if (this.pretendOffline && !path.startsWith('/dev/')) throw new Unreachable('network', 'Pretending to be offline');
     const token = this.token;
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), this.options.timeoutMs ?? 15_000);
+    this.running.set(abort, path);
     const sentAt = this.options.now();
     let status: number;
     let text: string;
@@ -73,6 +80,7 @@ export class Api {
     } catch (err) {
       throw new Unreachable('network', (err as Error).message);
     } finally {
+      this.running.delete(abort);
       clearTimeout(timer);
     }
     const receivedAt = this.options.now();
