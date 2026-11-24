@@ -2,7 +2,7 @@
 
 The long version of `DECISIONS.md`, kept so nothing is lost.
 
-Status: all 8 steps in `docs/PLAN.md` are built, except the recording. **Nothing has been tested on a real phone yet.** Only on an Android emulator and an iOS simulator, with release builds. `brief.md` asks for a real phone, so this is open, and so is how anything feels under a thumb.
+Status: all 8 steps in `docs/PLAN.md` are built, except the recording. **Every check below was made on an emulator or a simulator.** The owner opened the app on one real phone, a OnePlus, and found that the last swipe could end on an empty screen. The fix was tried on the emulator, not there. They were release builds on an Android emulator and an iOS simulator. `brief.md` asks for a real phone, so this is open, and so is how anything feels under a thumb.
 
 ## What was built first, and why
 
@@ -10,7 +10,7 @@ Six of the nine bad reviews are about days, money or lost progress. Those are wr
 
 ## The nine reviews
 
-None of these was checked on a real phone. "Both" is the Android emulator and the iOS simulator.
+The AI checked none of these on a real phone. "Both" is the Android emulator and the iOS simulator.
 
 1. **11:58pm, streak reset.** Fixed: 60 minutes to finish what was begun. Server tests, and played past midnight with the dev menu.
 2. **On the plane, didn't count.** Fixed: today and tomorrow play offline and count up to 48 hours late. Server and app tests, and airplane mode on Android.

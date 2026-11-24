@@ -1,6 +1,6 @@
 # Decisions
 
-**Nothing has been tested on a real phone yet**, only on an Android emulator and an iOS simulator, in release builds. More in `docs/DETAILS.md`.
+**Tested on an Android emulator and an iOS simulator, in release builds.** The owner found one bug on a real phone, a OnePlus. Its fix was not tried there. More in `docs/DETAILS.md`.
 
 ## What was built, in this order, and why
 
@@ -35,8 +35,8 @@ Binder screens, the planned cut: the table and the seeded pages exist. Search, p
 
 ## Still broken or not known
 
-- No real phone, no cheap Android, no real call. Frame numbers come from an emulator.
-- Stripe's real webhook was never received. The server asks Stripe instead.
+- No cheap Android, no real call. Frame numbers are an emulator's.
+- Stripe's real webhook was never received.
 - A refund that fails is tried every minute, and nobody is told.
 - The fake store lives on the phone, so the server takes its word. A changed app could begin a purchase every day and pay only after a miss.
 - If a streak is won back while a freeze is pending, or a late freeze covers it, the person keeps both.
