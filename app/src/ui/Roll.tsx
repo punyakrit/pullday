@@ -34,7 +34,7 @@ export function Roll({ text, size, color = colors.ink, quick = false, unit }: { 
       })}
       {unit !== undefined && (
         // The space is as big as the number, so the line it stands on is the number's.
-        <Text allowFontScaling={false} style={[styles.text, { fontSize: big, lineHeight: lineOf(big), color }]}>
+        <Text allowFontScaling={false} style={[styles.text, { fontSize: big, lineHeight: lineOf(big), letterSpacing: big * -0.05, color }]}>
           {' '}
           <Text style={{ fontSize: scaled(27), letterSpacing: -0.8 }}>{unit}</Text>
         </Text>
