@@ -1,0 +1,2 @@
+// For npm run ios: only the kind this Mac runs. A release build makes both.
+ONLY_ACTIVE_ARCH = YES
