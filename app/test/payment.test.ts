@@ -231,6 +231,101 @@ describe('what Stripe says', () => {
   });
 });
 
+describe('the offer after it was paid', () => {
+  /** Paid or refunded, and then /today does not answer, or answers with what it knew before. */
+  async function paidThen(today: 'fails' | 'is old', end: State = 'paid') {
+    const { world, engine, stripe } = await broken();
+    const respond = world.respond;
+    const server = { today };
+    world.respond = (method, path, body) => {
+      if (path !== '/today' || stripe.state === 'open') return respond(method, path, body);
+      if (server.today === 'fails') return { status: 503, body: { error: 'down', message: '' } };
+      return { status: 200, body: world.today({ streak: 40, winBack: null }) };
+    };
+    await engine.beginPayment();
+    const offers: unknown[] = [];
+    engine.subscribe(() => engine.getSnapshot().payment === null && offers.push(engine.getSnapshot().offer));
+    offers.length = 0;
+    stripe.state = end;
+    await engine.sheetClosed(false);
+    await settle();
+    return { world, engine, server, offers };
+  }
+
+  for (const end of ['paid', 'refunded', 'refunding'] as const) {
+    test(`${end}, and /today fails: it is gone, also after a kill, and stays gone`, async () => {
+      const { world, engine, server } = await paidThen('fails', end);
+      assert.equal(engine.getSnapshot().connection, 'trouble');
+      assert.equal(engine.getSnapshot().offer, null);
+      assert.equal(notices(engine).length, 1);
+      await engine.sync(); // fails again
+      assert.equal(engine.getSnapshot().offer, null);
+      engine.stop();
+      const again = world.open();
+      assert.equal(again.getSnapshot().offer, null);
+      await again.sync();
+      assert.equal(again.getSnapshot().offer, null);
+      server.today = 'is old';
+      await again.sync();
+      assert.equal(again.getSnapshot().today!.streak, 40);
+    });
+  }
+
+  test('it never shows for a moment under "Paid"', async () => {
+    const { offers } = await paidThen('is old');
+    assert.ok(offers.length > 0);
+    assert.ok(
+      offers.every((offer) => offer === null),
+      JSON.stringify(offers),
+    );
+  });
+
+  test('a /today that was asked before the payment does not bring it back, and it is asked again', async () => {
+    const { world, engine, stripe } = await broken();
+    // Its answer is from before the payment, and arrives after it.
+    const call = world.api.call.bind(world.api) as (...args: unknown[]) => Promise<unknown>;
+    let arrive = () => {};
+    const late = new Promise<void>((resolve) => (arrive = resolve));
+    let held = false;
+    world.api.call = (async (...args: unknown[]) => {
+      const reply = await call(...args);
+      if (args[1] !== '/today' || held) return reply;
+      held = true;
+      await late;
+      return reply;
+    }) as typeof world.api.call;
+    await engine.beginPayment();
+    world.calls = [];
+    const syncing = engine.sync();
+    await settle();
+    stripe.state = 'paid';
+    await engine.sheetClosed(false);
+    assert.equal(engine.getSnapshot().offer, null);
+    const offers: unknown[] = [];
+    engine.subscribe(() => offers.push(engine.getSnapshot().offer));
+    arrive();
+    await syncing;
+    await settle();
+    assert.ok(
+      offers.every((offer) => offer === null),
+      JSON.stringify(offers),
+    );
+    assert.equal(engine.getSnapshot().offer, null);
+    assert.equal(engine.getSnapshot().today!.streak, 40);
+    assert.equal(world.calls.filter((call) => call === 'GET /today').length, 2, world.calls.join());
+  });
+
+  test('a later break is still offered', async () => {
+    const { world, engine, server } = await paidThen('fails');
+    const later = { ...OFFER, missedDay: '2026-11-23', lostStreak: 1, closesAt: '2026-11-26T00:00:00Z' };
+    const respond = world.respond;
+    server.today = 'is old';
+    world.respond = (method, path, body) => (path === '/today' ? { status: 200, body: world.today({ winBack: later }) } : respond(method, path, body));
+    await engine.sync();
+    assert.deepEqual(engine.getSnapshot().offer, later);
+  });
+});
+
 describe('a payment for an earlier break', () => {
   const NEXT = { missedDay: '2026-11-25', lostStreak: 1, closesAt: '2026-11-28T00:00:00Z', priceCents: 499 };
 

@@ -108,6 +108,7 @@ export class Engine {
   private checking: Promise<void> | null = null;
   private cancelCheck: (() => void) | null = null;
   private checks = 0;
+  private settled: { missedDay: string } | null = null; // paid or refunded, and /today was not asked since
   private buying: { id: string; run: Promise<Bought>; confirmed: 'granted' | 'refunded' | null } | null = null;
   private confirming: Promise<void> | null = null;
   private confirmMs = 0;
@@ -280,7 +281,7 @@ export class Engine {
     const more = this.saved.outbox.some((other) => other !== item && other.kind === 'complete');
     if (this.today && !more) {
       const { streak, todayDone, freezes, freezesUsed, freezeRefunds, winBack, recentDays, settledThrough } = data;
-      this.today = { ...this.today, streak, todayDone, freezes, freezesUsed, freezeRefunds, winBack, recentDays, settledThrough };
+      this.today = this.withoutSettled({ ...this.today, streak, todayDone, freezes, freezesUsed, freezeRefunds, winBack, recentDays, settledThrough });
       writeRow(this.deps.storage, this.keys.today, TODAY, this.today);
       this.keepStreak(streak);
     }
@@ -352,8 +353,10 @@ export class Engine {
     if (!(await this.sendFirst())) return;
     if (this.stopped || !mayContact(this.saved, this.clock.now())) return;
     try {
+      const { settled } = this;
       const { data, sentAt, receivedAt } = await this.deps.api.call<Today>('GET', '/today');
       this.heard();
+      if (this.settled === settled) this.settled = null; // asked after the payment was over: this is the newer word
       this.applyToday(data, sentAt, receivedAt);
       if (!mayContact(this.saved, this.clock.now())) return;
       const { data: collection } = await this.deps.api.call<{ cards: OwnedCard[] }>('GET', '/collection');
@@ -482,10 +485,10 @@ export class Engine {
     const payment = this.saved.payment!;
     const days = `${payment.lostStreak} day streak`;
     if (paid.state === 'paid') {
-      this.saved.payment = null;
+      this.settle(payment);
       this.notice(`Paid. Your ${days} is back.`);
     } else if (paid.state === 'refunded' || paid.state === 'refunding') {
-      this.saved.payment = null;
+      this.settle(payment);
       this.notice(`Your streak did not need it, so your payment ${paid.state === 'refunded' ? 'was' : 'is being'} refunded in full.`);
     } else if (paid.state === 'open') {
       // Not paid. Right after a kill it may still be on its way, so it is asked a few times more.
@@ -495,8 +498,22 @@ export class Engine {
       this.saved.payment = { ...payment, state: paid.state, problem: paid.problem };
     }
     this.save();
-    if (this.saved.payment === null) void this.sync();
+    if (this.saved.payment !== null) return;
+    // One that is already being asked may be from before the payment, so it is asked once more.
+    if (this.syncRun) void this.syncRun.then(() => this.sync());
+    else void this.sync();
   }
+
+  /** Over, so this break is not offered again, also after a kill, until a /today that was asked later says otherwise. */
+  private settle({ missedDay }: Payment): void {
+    this.saved.payment = null;
+    this.settled = { missedDay };
+    if (!this.today) return;
+    this.today = this.withoutSettled(this.today);
+    writeRow(this.deps.storage, this.keys.today, TODAY, this.today);
+  }
+
+  private withoutSettled = (today: Today): Today => (today.winBack && today.winBack.missedDay === this.settled?.missedDay ? { ...today, winBack: null } : today);
 
   /** The person has read it. */
   dismissPayment(): void {
@@ -623,8 +640,8 @@ export class Engine {
 
   private applyToday(today: Today, sentAt: number, receivedAt: number): void {
     this.clock.sync(today.now, sentAt, receivedAt);
-    this.today = today;
-    writeRow(this.deps.storage, this.keys.today, TODAY, today);
+    this.today = this.withoutSettled(today);
+    writeRow(this.deps.storage, this.keys.today, TODAY, this.today);
     this.keepStreak(today.streak);
     const now = this.clock.now();
     const unsent = new Set(this.saved.outbox.map((item) => item.challengeId));
@@ -660,6 +677,7 @@ export class Engine {
     this.lastStreak = null;
     this.open = null;
     this.sheet = null;
+    this.settled = null;
     this.cancelCheck?.();
     this.unsaved = false;
     this.deps.store.forget(this.user.id);
