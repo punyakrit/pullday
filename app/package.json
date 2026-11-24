@@ -43,7 +43,7 @@
   "scripts": {
     "start": "expo start --dev-client",
     "android": "expo prebuild -p android --no-install && expo run:android --variant release --no-bundler",
-    "ios": "open -a Simulator && XCODE_XCCONFIG_FILE=\"$PWD/simulator.xcconfig\" expo run:ios --configuration Release --no-bundler",
+    "ios": "(open -a Simulator || open -a DeviceHub) 2>/dev/null; XCODE_XCCONFIG_FILE=\"$PWD/simulator.xcconfig\" expo run:ios --configuration Release --no-bundler",
     "dev:android": "expo prebuild -p android --no-install && expo run:android",
     "dev:ios": "expo run:ios",
     "typecheck": "tsc --noEmit && tsc --noEmit -p test",
