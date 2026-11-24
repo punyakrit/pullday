@@ -15,9 +15,10 @@ export function describeCard(card: Card): string {
 
 /**
  * In the place of a picture: there is none (27 of the links in the data are dead), or it could not be had.
- * Drawn as a slab with the card's own label, so it sits among the others.
+ * Drawn as a slab with the card's own label, so it sits among the others. `shape` shows the rarity, which
+ * is the answer in the challenge: so only where it is asked for.
  */
-export const CardText = memo(function CardText({ card, width, height, why, grey = false }: { card: Card; width: number; height: number; why: 'none' | 'failed'; grey?: boolean }) {
+export const CardText = memo(function CardText({ card, width, height, why, grey = false, shape = false }: { card: Card; width: number; height: number; why: 'none' | 'failed'; grey?: boolean; shape?: boolean }) {
   const small = width < 160;
   const edge = Math.max(4, width * 0.045);
   const number = card.number ? `#${card.number}` : String(card.year);
@@ -37,7 +38,7 @@ export const CardText = memo(function CardText({ card, width, height, why, grey 
         </Words>
       </View>
       <View style={[styles.window, { borderRadius: width * 0.02 }]}>
-        <Shape rarity={card.rarity} size={width * 0.3} color={grey ? '#B9B9B9' : undefined} />
+        {shape && <Shape rarity={card.rarity} size={width * 0.3} color={grey ? '#B9B9B9' : undefined} />}
         <Words kind="soft" style={[styles.labelLine, !small && styles.windowSaid]} numberOfLines={2} maxFontSizeMultiplier={1.15}>
           {small ? (why === 'none' ? 'No picture' : 'Not loaded') : why === 'none' ? 'No picture of this card' : 'This picture could not be loaded'}
         </Words>
@@ -53,6 +54,8 @@ type Props = {
   grey?: boolean;
   /** Pushed back a little: in the grid, grey alone does not say enough. */
   asleep?: boolean;
+  /** The rarity, in the place of a picture there is none of. Never in the challenge. */
+  shape?: boolean;
   size?: ImageWidth;
   under?: ImageWidth;
   priority?: 'low' | 'normal' | 'high';
@@ -64,11 +67,11 @@ type Props = {
  * say so if it cannot be loaded. The whole picture is shown: 45 are not slab shaped, nearly all of them
  * stand-in photos in the data.
  */
-export const CardImage = memo(function CardImage({ card, width, height, grey = false, asleep = false, size = widthFor(width), under = size === 1080 ? 400 : size, priority = 'normal', fade = true }: Props) {
+export const CardImage = memo(function CardImage({ card, width, height, grey = false, asleep = false, shape = false, size = widthFor(width), under = size === 1080 ? 400 : size, priority = 'normal', fade = true }: Props) {
   // What is already here goes under. And the large one can take the server 20 seconds to make.
   const base = imageUrl(card.id, under, grey);
   const { state } = usePicture(card.id, base);
-  if (state === 'none') return <CardText card={card} width={width} height={height} why="none" grey={grey} />;
+  if (state === 'none') return <CardText card={card} width={width} height={height} why="none" grey={grey} shape={shape} />;
   const layer = { cardId: card.id, radius: width * 0.05, priority, fade };
   return (
     <View style={[styles.tile, { width, height, borderRadius: width * 0.05 }]}>

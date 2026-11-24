@@ -98,7 +98,7 @@ function Art({ card, owned }: { card: Card; owned: boolean }) {
     <View style={styles.art} accessible accessibilityRole="image" accessibilityLabel={describeCard(card)}>
       <View ref={view} collapsable={false} style={{ width, height: Math.floor(width * CARD_RATIO) }}>
         <Animated.View style={growing}>
-          <CardImage card={card} width={width} height={Math.floor(width * CARD_RATIO)} grey={!owned} under={gridFor(window.width).size} priority="high" />
+          <CardImage card={card} width={width} height={Math.floor(width * CARD_RATIO)} grey={!owned} shape under={gridFor(window.width).size} priority="high" />
         </Animated.View>
       </View>
     </View>

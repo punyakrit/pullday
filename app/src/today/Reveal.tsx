@@ -287,7 +287,7 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
                 {picture.state === 'ready' ? (
                   <Image source={picture.image} contentFit="cover" style={{ width, height: faceHeight, borderRadius: width * 0.05 }} accessible={false} />
                 ) : (
-                  <CardText card={card} width={width} height={height} why={why} />
+                  <CardText card={card} width={width} height={height} why={why} shape />
                 )}
                 <Sheen rarity={card.rarity} width={width} height={faceHeight} sweep={sweep} tilt={tilt} />
               </View>

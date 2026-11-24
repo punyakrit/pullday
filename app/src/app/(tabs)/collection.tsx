@@ -176,7 +176,7 @@ const Cell = memo(function Cell({ card, owned, width, size }: { card: Card; owne
       accessibilityRole="button"
       accessibilityLabel={`${describeCard(card)}. ${rarityName[card.rarity]}. ${owned ? 'Yours' : 'Not yours yet'}`}
     >
-      <CardImage card={card} width={width} height={height} grey={!owned} asleep={!owned} size={size} />
+      <CardImage card={card} width={width} height={height} grey={!owned} asleep={!owned} shape size={size} />
     </Press>
   );
 });

@@ -42,7 +42,7 @@ export function Done({ engine, snapshot, view }: Props) {
         <Rise at={1}>
           {card ? (
             <View style={styles.card} accessible accessibilityLabel={`Today's card. ${describeCard(card)}. ${rarityName[card.rarity]}.`}>
-              <CardImage card={card} width={width} height={Math.floor(width * CARD_RATIO)} priority="high" />
+              <CardImage card={card} width={width} height={Math.floor(width * CARD_RATIO)} shape priority="high" />
               <View style={styles.name}>
                 <Shape rarity={card.rarity} size={18} />
                 <Words kind="label" numberOfLines={1} style={styles.shrink}>
