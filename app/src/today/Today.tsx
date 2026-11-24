@@ -4,8 +4,10 @@ import { router, useIsFocused } from 'expo-router';
 import Animated, { ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { bannerFor } from '../core/banner';
+import { FIRST, roundOf } from '../core/round';
+import { whyStuck } from '../core/stuck';
 import type { Engine, Snapshot } from '../core/engine';
-import { GRACE_MS, type PaymentState, type View as DayView } from '../core/state';
+import { CARDS, GRACE_MS, type PaymentState, type View as DayView } from '../core/state';
 import type { Rarity } from '../core/types';
 import { setStage } from '../lib/stage';
 import { useDayTimer, useEngine, useServerNow } from '../lib/useEngine';
@@ -18,6 +20,7 @@ import { hairline } from '../ui/hairline';
 import { colors, space, stage } from '../ui/theme';
 import { Deck } from './Deck';
 import { Done, countdown } from './Done';
+import { Late } from './Late';
 import { Reveal } from './Reveal';
 
 /** iOS draws its tab bar over the screen. Android ends the screen above it. */
@@ -43,11 +46,20 @@ function useLastCard(view: DayView, reduced: boolean): DayView {
   return leaving ? shown : view;
 }
 
+/** The deck starts over when the answers it has are no longer the saved ones. */
+function useRound(view: DayView): string {
+  const [round, setRound] = useState(() => roundOf(FIRST, view));
+  const now = roundOf(round, view);
+  if (now !== round) setRound(now);
+  return now.key;
+}
+
 export function Today({ engine }: { engine: Engine }) {
   const snapshot = useEngine(engine);
   const reduced = useReducedMotion();
   useDayTimer(engine, snapshot);
   const view = useLastCard(snapshot.view, reduced);
+  const round = useRound(snapshot.view);
 
   // A reveal that was waiting stays on screen until it is closed.
   const revealId = view.kind === 'reveal' ? view.reveal.challengeId : null;
@@ -74,7 +86,7 @@ export function Today({ engine }: { engine: Engine }) {
       <SafeAreaView edges={EDGES} style={styles.fill}>
         <Header engine={engine} snapshot={snapshot} dark={dark} />
         <Line engine={engine} snapshot={snapshot} view={view} />
-        {view.kind === 'challenge' && <Challenge key={view.challenge.id} engine={engine} view={view} />}
+        {view.kind === 'challenge' && <Challenge key={round} engine={engine} snapshot={snapshot} view={view} />}
         {view.kind === 'reveal' && <RevealOf key={view.reveal.challengeId} engine={engine} snapshot={snapshot} view={view} />}
         {view.kind === 'done' && <Done engine={engine} snapshot={snapshot} view={view} />}
         {view.kind === 'empty' && <Empty engine={engine} snapshot={snapshot} />}
@@ -83,11 +95,18 @@ export function Today({ engine }: { engine: Engine }) {
   );
 }
 
-function Challenge({ engine, view }: { engine: Engine; view: Extract<DayView, { kind: 'challenge' }> }) {
+function Challenge({ engine, snapshot, view }: { engine: Engine; snapshot: Snapshot; view: Extract<DayView, { kind: 'challenge' }> }) {
   const { challenge } = view;
   const begin = useCallback(() => engine.begin(challenge), [challenge, engine]);
   const answer = useCallback((index: number, rarity: Rarity) => engine.answer(challenge, index, rarity), [challenge, engine]);
-  return <Deck challenge={challenge} answers={view.answers} onBegin={begin} onAnswer={answer} />;
+  const [deck, setDeck] = useState(0);
+  const tryAgain = useCallback(async () => {
+    await engine.tryAgain();
+    const now = engine.getSnapshot().view;
+    // Whatever went wrong: if it is not all sorted as far as we know, it goes on from there.
+    if (now.kind === 'challenge' && now.challenge.id === challenge.id && now.answers.length < CARDS) setDeck((before) => before + 1);
+  }, [challenge.id, engine]);
+  return <Deck key={deck} challenge={challenge} answers={view.answers} onBegin={begin} onAnswer={answer} why={whyStuck(snapshot)} onTryAgain={() => void tryAgain()} />;
 }
 
 function RevealOf({ engine, snapshot, view }: { engine: Engine; snapshot: Snapshot; view: Extract<DayView, { kind: 'reveal' }> }) {
@@ -217,13 +236,15 @@ function Line({ engine, snapshot, view }: { engine: Engine; snapshot: Snapshot; 
   }
 }
 
+const WAITING = { title: "Getting today's challenge", line: 'The server has not answered yet.' };
+
 /** Nothing on the phone covers today: the first open, or three days with no connection. */
 function Empty({ engine, snapshot }: { engine: Engine; snapshot: Snapshot }) {
   const failed = snapshot.connection === 'offline' || snapshot.connection === 'trouble';
   if (!failed || snapshot.syncing) {
     return (
       <View style={styles.middle} accessibilityLabel="Getting today's challenge">
-        <ActivityIndicator color={colors.soft} size="large" />
+        <Late why={WAITING} onTryAgain={() => void engine.tryAgain()} meanwhile={<ActivityIndicator color={colors.soft} size="large" />} />
       </View>
     );
   }

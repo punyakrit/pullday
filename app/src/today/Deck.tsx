@@ -24,6 +24,7 @@ import { CardImage, describeCard } from '../ui/CardImage';
 import { Icon, Shape } from '../ui/Icons';
 import { Words } from '../ui/Words';
 import { CARD_RATIO, colors, rarityColor, rarityName, space } from '../ui/theme';
+import { Late } from './Late';
 import { decide, flickTime, give, liftSpeed, pull } from './swipe';
 
 type Props = {
@@ -31,6 +32,9 @@ type Props = {
   answers: Rarity[];
   onBegin: () => void;
   onAnswer: (index: number, rarity: Rarity) => void;
+  /** Why there is no reveal, when all 8 are sorted and there is none. */
+  why: { title: string; line: string };
+  onTryAgain: () => void;
 };
 
 /** One card's place on the UI thread. Each has its own, so a card in flight never holds up the next. */
@@ -62,7 +66,7 @@ function bump(pile: SharedValue<number>) {
 
 const ACTIONS = DIRECTIONS.map(({ rarity }) => ({ name: rarity, label: rarityName[rarity] }));
 
-export function Deck({ challenge, answers: saved, onBegin, onAnswer }: Props) {
+export function Deck({ challenge, answers: saved, onBegin, onAnswer, why, onTryAgain }: Props) {
   // Fixed for as long as this challenge is on screen. A refresh in the background brings a new copy
   // of the same challenge, and must not touch a card that is under a finger.
   const [{ cards, rarities, places }] = useState(() => ({
@@ -203,6 +207,12 @@ export function Deck({ challenge, answers: saved, onBegin, onAnswer }: Props) {
           {cardWidth > 0 && <Overlay places={places} top={top} size={size} width={cardWidth} height={cardHeight} />}
         </View>
         <Surface places={places} top={top} size={size} throwCard={throwCard} begin={begin} />
+        {!current && (
+          // The reveal is here long before this says anything.
+          <View style={styles.late}>
+            <Late why={why} onTryAgain={onTryAgain} />
+          </View>
+        )}
       </View>
 
       <View style={styles.piles}>
@@ -507,6 +517,7 @@ const Pip = memo(function Pip({ now, right, place, full }: { now: boolean; right
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   shrink: { flexShrink: 1 },
+  late: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' },
   deck: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 18 },
   card: { position: 'absolute' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 7 },
