@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
-import { PixelRatio, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import { useOpening } from './Rise';
+import { useFontScale } from './fontScale';
 import { serifDrop } from './Words';
 import { colors, serif } from './theme';
 
@@ -10,7 +11,7 @@ const WIDTH = [0.46, 0.249, 0.404, 0.371, 0.393, 0.382, 0.404, 0.364, 0.433, 0.4
 const WIDEST = 0.6;
 const TEN = '0\n1\n2\n3\n4\n5\n6\n7\n8\n9';
 
-const scaled = (size: number) => size * Math.min(PixelRatio.getFontScale(), 1.3);
+const scaled = (size: number, scale: number) => size * Math.min(scale, 1.3);
 
 /**
  * A big number that counts up when the screen opens, and rolls on when it changes. Each digit is a strip
@@ -18,7 +19,8 @@ const scaled = (size: number) => size * Math.min(PixelRatio.getFontScale(), 1.3)
  * it counts, small and on the same line.
  */
 export function Roll({ text, size, color = colors.ink, quick = false, unit }: { text: string; size: number; color?: string; quick?: boolean; unit?: string }) {
-  const big = scaled(size);
+  const scale = useFontScale();
+  const big = scaled(size, scale);
   const chars = [...text];
   return (
     <View style={[styles.row, level(big)]} accessible={false} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
@@ -36,7 +38,7 @@ export function Roll({ text, size, color = colors.ink, quick = false, unit }: { 
         // The space is as big as the number, so the line it stands on is the number's.
         <Text allowFontScaling={false} style={[styles.text, { fontSize: big, lineHeight: lineOf(big), letterSpacing: big * -0.05, color }]}>
           {' '}
-          <Text style={{ fontSize: scaled(27), letterSpacing: -0.8 }}>{unit}</Text>
+          <Text style={{ fontSize: scaled(27, scale), letterSpacing: -0.8 }}>{unit}</Text>
         </Text>
       )}
     </View>
@@ -69,7 +71,8 @@ function Digit({ digit, size, color, delay, quick }: { digit: number; size: numb
 
 /** A number that ticks. Every digit has the same room, so nothing beside it moves. */
 export function Ticking({ text, size, color = colors.ink }: { text: string; size: number; color?: string }) {
-  const big = scaled(size);
+  const scale = useFontScale();
+  const big = scaled(size, scale);
   return (
     <View style={[styles.row, level(big)]} accessible={false} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
       {[...text].map((char, i) => (

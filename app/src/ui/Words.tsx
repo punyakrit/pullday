@@ -1,4 +1,5 @@
 import { Platform, Text, type TextProps } from 'react-native';
+import { useFontScale } from './fontScale';
 import { colors, serif } from './theme';
 
 /** The serif is 1.3 high. In a shorter line, iOS puts it at the top and Android in the middle. This is the rest of the way. */
@@ -21,5 +22,7 @@ export const MOST = 1.4;
 
 /** Text, at one of five sizes. */
 export function Words({ kind = 'body', style, ...rest }: TextProps & { kind?: keyof typeof styles }) {
-  return <Text maxFontSizeMultiplier={MOST} {...rest} style={[styles[kind], style]} />;
+  // Android: a text that is there keeps the size it had. A new one takes up the new size.
+  const scale = useFontScale();
+  return <Text key={Platform.OS === 'android' ? scale : 0} maxFontSizeMultiplier={MOST} {...rest} style={[styles[kind], style]} />;
 }
