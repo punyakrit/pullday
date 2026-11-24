@@ -30,7 +30,14 @@ function shuffle<T>(items: T[]): T[] {
 
 /** 8 different cards: 2 common, 2 rare, 2 holo, and 2 from anywhere. Never the reward. */
 export async function pickCards(rewardId: string | null): Promise<string[]> {
-  const pool = shuffle((await catalogue()).list.filter((card) => card.id !== rewardId));
+  const { list, noPicture } = await catalogue();
+  return chooseCards(list, noPicture, rewardId);
+}
+
+/** A card with no picture only if there are not enough others. */
+export function chooseCards(list: CardSummary[], noPicture: Set<string>, rewardId: string | null): string[] {
+  const shuffled = shuffle(list.filter((card) => card.id !== rewardId));
+  const pool = [...shuffled.filter((card) => !noPicture.has(card.id)), ...shuffled.filter((card) => noPicture.has(card.id))];
   const picked: CardSummary[] = [];
   for (const rarity of ['common', 'rare', 'holo'] as const) {
     picked.push(...pool.filter((card) => card.rarity === rarity).slice(0, 2));
@@ -42,7 +49,8 @@ export async function pickCards(rewardId: string | null): Promise<string[]> {
 /**
  * A random card the user does not own, or null if they own every one. A card promised by
  * another unfinished challenge is left alone, because a phone that is offline may already have
- * shown it. When finishing, taking a promised card beats giving nothing.
+ * shown it. When finishing, taking a promised card beats giving nothing. A card with no picture
+ * is given only when no other is left.
  */
 async function pickReward(db: Db, userId: string, today: Day, forDay: Day, takePromised = false): Promise<string | null> {
   const found = await db.query<{ id: string }>(
@@ -52,7 +60,7 @@ async function pickReward(db: Db, userId: string, today: Day, forDay: Day, takeP
      select c.id from cards c
       where not exists (select 1 from collection o where o.user_id = $1 and o.card_id = c.id)
         and ($4 or c.id not in (select id from promised))
-      order by c.id in (select id from promised), random()
+      order by c.id in (select id from promised), c.id in (select card_id from cards_without_picture), random()
       limit 1`,
     [userId, addDays(today, -4), forDay, takePromised],
   );

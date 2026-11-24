@@ -22,12 +22,16 @@ export type CardSummary = {
 const SUMMARY = `id, game, card_name as name, set_name as "set", card_number as number, year, variety, grade::float8 as grade, rarity`;
 
 // The catalogue never changes while the server runs, so it is read once.
-let loaded: Promise<{ list: CardSummary[]; byId: Map<string, CardSummary> }> | undefined;
+let loaded: Promise<{ list: CardSummary[]; byId: Map<string, CardSummary>; noPicture: Set<string> }> | undefined;
 
 export function catalogue() {
-  loaded ??= pool.query<CardSummary>(`select ${SUMMARY} from cards order by id`).then(({ rows }) => ({
+  loaded ??= Promise.all([
+    pool.query<CardSummary>(`select ${SUMMARY} from cards order by id`),
+    pool.query<{ card_id: string }>('select card_id from cards_without_picture'),
+  ]).then(([{ rows }, gone]) => ({
     list: rows,
     byId: new Map(rows.map((card) => [card.id, card])),
+    noPicture: new Set(gone.rows.map((row) => row.card_id)),
   }));
   loaded.catch(() => (loaded = undefined)); // try again after a failed read
   return loaded;

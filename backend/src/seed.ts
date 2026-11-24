@@ -12,7 +12,10 @@ type Account = { db: Db; userId: string; today: Day; noon: (day: Day) => Date };
 
 /** Days done in a row, each with the card it gave. The last one is `lastDay`. */
 async function playedDays({ db, userId, noon }: Account, count: number, lastDay: Day): Promise<void> {
-  const cards = await db.query<{ id: string }>('select id from cards order by md5(id || $1) limit $2', [userId, count]);
+  const cards = await db.query<{ id: string }>(
+    `select id from cards where id not in (select card_id from cards_without_picture) order by md5(id || $1) limit $2`,
+    [userId, count],
+  );
   for (let i = 0; i < count; i++) {
     const day = addDays(lastDay, -i);
     const reward = cards.rows[i]!.id;

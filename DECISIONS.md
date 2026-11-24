@@ -1,10 +1,10 @@
 # Decisions
 
-**Nothing has been tested on a real phone yet**, only on an Android emulator and an iOS simulator, with release builds. The long version is `docs/DETAILS.md`.
+**Nothing has been tested on a real phone yet**, only on an Android emulator and an iOS simulator, in release builds. More in `docs/DETAILS.md`.
 
 ## What was built, in this order, and why
 
-1. **Server rules for days.** Six of the nine reviews are about days, money or lost progress, and those stay wrong on every phone if the server is wrong.
+1. **Server rules for days.** Six of the nine reviews are about days, money or lost progress, wrong on every phone if the server is wrong.
 2. **The loop on the phone**, offline from the start. A loop that only works online would have to be rebuilt.
 3. **Kills, calls, no network.** Swipes are saved as they happen, the card before it is shown.
 4. **Collection and card details.** The heaviest screens.
@@ -35,13 +35,13 @@ Binder screens, the planned cut: the table and the seeded pages exist. Search, p
 
 ## Still broken or not known
 
-- No real phone, no cheap Android, no real call. Frame numbers are from an emulator.
-- Stripe's real webhook was never received. The server asks Stripe itself instead.
+- No real phone, no cheap Android, no real call. Frame numbers come from an emulator.
+- Stripe's real webhook was never received. The server asks Stripe instead.
 - A refund that fails is tried every minute, and nobody is told.
 - The fake store lives on the phone, so the server takes its word. A changed app could begin a purchase every day and pay only after a miss.
 - If a streak is won back while a freeze is pending, or a late freeze covers it, the person keeps both.
-- The offline bundle holds the answers and the reward, so a curious person can read them.
+- The offline bundle holds the answers and the reward, so the curious can read them.
 - Offline, a phone with its date moved forward shows tomorrow. The server refuses it.
-- A large picture can take 20 seconds the first time. 27 are gone at their source and drawn as a slab.
+- A large picture can take 20 seconds the first time. 27 are gone at their source: drawn as a slab, and picked for a reward or challenge only if nothing else is left.
 - Closing the payment sheet takes about 6 seconds to say "Not paid".
 - Several notices push the Buy button off the screen. On iOS the card is half grown when the details fade in.
