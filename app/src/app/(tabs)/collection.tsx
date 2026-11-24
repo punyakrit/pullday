@@ -1,5 +1,5 @@
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
-import { useIsFocused } from 'expo-router';
+import { useIsFocused, useScrollToTop } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, type HostInstance, Platform, Pressable, RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -10,7 +10,7 @@ import type { Card } from '../../core/types';
 import { useCatalogue } from '../../lib/catalogue';
 import { GAP, gridFor } from '../../lib/grid';
 import type { ImageWidth } from '../../lib/images';
-import { openCard } from '../../lib/openCard';
+import { type OpenCard, useOpenCard } from '../../lib/openCard';
 import { useSession } from '../../lib/session';
 import { useEngine } from '../../lib/useEngine';
 import { Button } from '../../ui/Button';
@@ -44,6 +44,8 @@ function Collection({ engine }: { engine: Engine }) {
   const [filter, setFilter] = useState<Filter>('all');
   const [pulling, setPulling] = useState(false);
   const list = useRef<FlashListRef<Card>>(null);
+  useScrollToTop(list as never); // the tab that is open, tapped again
+  const open = useOpenCard();
 
   const { owned, saved } = snapshot;
   const yours = useMemo(() => ownedNow(owned, saved), [owned, saved]);
@@ -56,7 +58,7 @@ function Collection({ engine }: { engine: Engine }) {
     return [...ids].flatMap((id) => catalogue.byId.get(id) ?? []);
   }, [catalogue, filter, ids]);
 
-  const renderItem = useCallback(({ item }: { item: Card }) => <Cell card={item} owned={ids.has(item.id)} width={cell} size={size} />, [cell, ids, size]);
+  const renderItem = useCallback(({ item }: { item: Card }) => <Cell card={item} owned={ids.has(item.id)} width={cell} size={size} open={open} />, [cell, ids, open, size]);
   const refresh = useCallback(async () => {
     setPulling(true);
     await engine.sync();
@@ -167,12 +169,12 @@ function Choice({ title, chosen, onPress }: { title: string; chosen: boolean; on
   );
 }
 
-const Cell = memo(function Cell({ card, owned, width, size }: { card: Card; owned: boolean; width: number; size: ImageWidth }) {
+const Cell = memo(function Cell({ card, owned, width, size, open }: { card: Card; owned: boolean; width: number; size: ImageWidth; open: OpenCard }) {
   const height = Math.floor(width * CARD_RATIO);
   return (
     <Press
       style={styles.cell}
-      onPress={(event) => openCard(card.id, event.currentTarget as unknown as HostInstance, width)}
+      onPress={(event) => open(card.id, event.currentTarget as unknown as HostInstance, width)}
       accessibilityRole="button"
       accessibilityLabel={`${describeCard(card)}. ${rarityName[card.rarity]}. ${owned ? 'Yours' : 'Not yours yet'}`}
     >

@@ -43,3 +43,5 @@ export const statusName: Record<DayStatus, string> = {
   late: 'still open',
   before: '',
 };
+
+export const daysText = (count: number): string => `${count} ${count === 1 ? 'day' : 'days'}`;

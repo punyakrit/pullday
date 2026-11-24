@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -53,6 +53,7 @@ function LogOut({ engine }: { engine: Engine }) {
 
 /** For the six test accounts, in every build. The server refuses it for anyone else. */
 function DevMenu({ engine, user }: { engine: Engine; user: User }) {
+  const router = useRouter();
   const snapshot = useEngine(engine);
   const now = useServerNow(engine, 1_000);
   const [busy, setBusy] = useState<string | null>(null);

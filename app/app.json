@@ -25,7 +25,12 @@
       }
     },
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "sitemap": false
+        }
+      ],
       [
         "expo-secure-store",
         {
@@ -57,7 +62,8 @@
           "disableSPM": true
         }
       ],
-      "./plugins/withoutTapAndPay"
+      "./plugins/withoutTapAndPay",
+      "./plugins/withLastingActivity"
     ],
     "experiments": {
       "typedRoutes": true

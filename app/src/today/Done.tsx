@@ -2,6 +2,7 @@ import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Engine, Snapshot } from '../core/engine';
 import type { View as DayView } from '../core/state';
+import { daysText } from '../core/streakDays';
 import { useServerNow } from '../lib/useEngine';
 import { CardImage, describeCard } from '../ui/CardImage';
 import { Shape } from '../ui/Icons';
@@ -70,7 +71,7 @@ export function Done({ engine, snapshot, view }: Props) {
           <LiveFlame size={20} streak={snapshot.streak} />
           <Words kind="label">
             {snapshot.streakKnown
-              ? `${streak} day${streak === 1 ? '' : 's'} in a row`
+              ? `${daysText(streak)} in a row`
               : snapshot.unsent > 0 && snapshot.streakOld
                 ? 'Your streak updates when you are online'
                 : 'Checking your streak'}

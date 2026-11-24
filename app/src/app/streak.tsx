@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +26,7 @@ export default function StreakScreen() {
 }
 
 function Streak({ engine }: { engine: Engine }) {
+  const router = useRouter();
   const snapshot = useEngine(engine);
   const insets = useSafeAreaInsets();
   const { today, saved, streakOld, payment, offer } = snapshot;

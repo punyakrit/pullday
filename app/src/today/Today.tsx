@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { router, useIsFocused } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
 import Animated, { ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { bannerFor } from '../core/banner';
 import { FIRST, roundOf } from '../core/round';
 import { whyStuck } from '../core/stuck';
 import type { Engine, Snapshot } from '../core/engine';
+import { daysText } from '../core/streakDays';
 import { CARDS, GRACE_MS, type PaymentState, type View as DayView } from '../core/state';
 import type { Rarity } from '../core/types';
 import { setStage } from '../lib/stage';
@@ -118,6 +119,7 @@ function RevealOf({ engine, snapshot, view }: { engine: Engine; snapshot: Snapsh
 }
 
 function Header({ engine, snapshot, dark }: { engine: Engine; snapshot: Snapshot; dark: boolean }) {
+  const router = useRouter();
   const { ink, soft } = dark ? stage : colors;
   const { streak, streakOld } = snapshot;
   return (
@@ -126,7 +128,7 @@ function Header({ engine, snapshot, dark }: { engine: Engine; snapshot: Snapshot
         style={({ pressed }) => [styles.streak, pressed && { opacity: 0.6 }]}
         hitSlop={12}
         accessibilityRole="button"
-        accessibilityLabel={streak === null ? 'Streak, not known yet' : `Streak, ${streak} days.${streakOld ? ' Last known, it may be old.' : ''}`}
+        accessibilityLabel={streak === null ? 'Streak, not known yet' : `Streak, ${daysText(streak)}.${streakOld ? ' Last known, it may be old.' : ''}`}
         onPress={() => router.push('/streak')}
       >
         <LiveFlame size={22} streak={streak} old={streakOld} />
@@ -167,6 +169,7 @@ const PAYMENT: Record<PaymentState, string> = {
 };
 
 function Line({ engine, snapshot, view }: { engine: Engine; snapshot: Snapshot; view: DayView }) {
+  const router = useRouter();
   const now = useServerNow(engine, 1_000);
   const banner = bannerFor({ ...snapshot, view });
   switch (banner?.kind) {
