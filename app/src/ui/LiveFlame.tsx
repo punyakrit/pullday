@@ -4,7 +4,7 @@ import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, w
 import { Flame } from './Icons';
 import { colors } from './theme';
 
-/** A flame that lights up when the streak grows or is won back. */
+/** A flame that lights up when the streak grows or is won back. Out at 0 days, and when it may be old. */
 export function LiveFlame({ size, streak, old = false }: { size: number; streak: number | null; old?: boolean }) {
   const reduced = useReducedMotion();
   const before = useRef(streak);
@@ -23,7 +23,7 @@ export function LiveFlame({ size, streak, old = false }: { size: number; streak:
     <View style={styles.box}>
       <Animated.View style={[styles.halo, { width: size * 1.6, height: size * 1.6, borderRadius: size }, halo]} />
       <Animated.View style={flame}>
-        <Flame size={size} color={old ? colors.flameOff : colors.flame} />
+        <Flame size={size} color={old || !streak ? colors.flameOff : colors.flame} />
       </Animated.View>
     </View>
   );
