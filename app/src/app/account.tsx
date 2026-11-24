@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Engine } from '../core/engine';
+import { unbroken } from '../core/prices';
 import type { Outcome } from '../core/store';
 import type { User } from '../core/types';
 import { API_URL } from '../lib/config';
@@ -79,7 +80,7 @@ function DevMenu({ engine, user }: { engine: Engine; user: User }) {
       engine.clock.sync(reply.now, sentAt, Date.now());
       engine.refreshView();
       await engine.sync();
-      return `It is now ${new Date(reply.now).toLocaleString()} on the server.`;
+      return `It is now ${unbroken(new Date(reply.now).toLocaleString())} on the server.`;
     },
   });
   const grant = (title: string, count: number) => ({
@@ -208,7 +209,7 @@ function DevMenu({ engine, user }: { engine: Engine; user: User }) {
         Dev menu
       </Words>
       <Words kind="soft">
-        Server time {new Date(now).toLocaleString()}. {API_URL.replace(/^https?:\/\//, '')}
+        Server time {unbroken(new Date(now).toLocaleString())}. {API_URL.replace(/^https?:\/\//, '')}
       </Words>
       <View style={styles.row}>
         <Words style={styles.shrink}>Pretend there is no connection</Words>

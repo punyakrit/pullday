@@ -3,19 +3,22 @@ import type { Price } from './details';
 const dollars = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 export const money = (cents: number): string => dollars.format(cents / 100);
 
+/** A date or a time that stays on one line. Some phones already use narrow spaces of their own. */
+export const unbroken = (text: string): string => text.replace(/\s/g, '\u00a0');
+
 /** A plain date from the server, never moved by the phone's time zone. */
 export function dateText(date: string, length: 'long' | 'short' = 'long'): string {
   const at = new Date(`${date.slice(0, 10)}T12:00:00Z`);
-  return at.toLocaleDateString(undefined, { day: 'numeric', month: length, timeZone: 'UTC', ...(length === 'long' ? { year: 'numeric' } : {}) });
+  return unbroken(at.toLocaleDateString(undefined, { day: 'numeric', month: length, timeZone: 'UTC', ...(length === 'long' ? { year: 'numeric' } : {}) }));
 }
 
 /** The day of a moment, in the home time zone, like every other day here. */
 export function dayOf(moment: string, zone: string | undefined): string {
   const options = { day: 'numeric', month: 'long', year: 'numeric' } as const;
   try {
-    return new Date(moment).toLocaleDateString(undefined, { ...options, timeZone: zone });
+    return unbroken(new Date(moment).toLocaleDateString(undefined, { ...options, timeZone: zone }));
   } catch {
-    return new Date(moment).toLocaleDateString(undefined, options); // a zone this phone does not know
+    return unbroken(new Date(moment).toLocaleDateString(undefined, options)); // a zone this phone does not know
   }
 }
 
@@ -24,7 +27,7 @@ export type Plot = {
   low: number; // which point
   high: number;
   path: string;
-  area: string;
+  area: string; // between the line and the Low line, so it never runs through what is written under that
 };
 
 /**
@@ -45,7 +48,8 @@ export function plot(prices: Price[], width: number, height: number, inset: { x:
   const path = points.map(({ x, y }, i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`).join('');
   const first = points[0]!;
   const last = points.at(-1)!;
-  return { points, low, high, path, area: `${path}L${last.x.toFixed(1)} ${height}L${first.x.toFixed(1)} ${height}Z` };
+  const floor = points[low]!.y.toFixed(1);
+  return { points, low, high, path, area: `${path}L${last.x.toFixed(1)} ${floor}L${first.x.toFixed(1)} ${floor}Z` };
 }
 
 /** The point nearest to a finger. */

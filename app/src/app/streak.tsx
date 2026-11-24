@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Engine, Snapshot } from '../core/engine';
-import { dateText, money } from '../core/prices';
+import { dateText, money, unbroken } from '../core/prices';
 import { type Payment, isFor, isOver, mayCover } from '../core/state';
 import { type DayStatus, type StreakDay, statusName, streakDays } from '../core/streakDays';
 import type { Today, WinBack } from '../core/types';
@@ -53,8 +53,7 @@ function Streak({ engine }: { engine: Engine }) {
           <>
             <View style={styles.count} accessible accessibilityLabel={`${today.streak} day streak. ${streakOld ? 'Last known, it may be old.' : ''}`}>
               <LiveFlame size={44} streak={today.streak} old={streakOld} />
-              <Roll text={String(today.streak)} size={84} />
-              <Words kind="heading">{today.streak === 1 ? 'day' : 'days'}</Words>
+              <Roll text={String(today.streak)} size={84} unit={today.streak === 1 ? 'day' : 'days'} />
             </View>
             {streakOld && <Old engine={engine} snapshot={snapshot} today={today} />}
             {snapshot.saved.notices.map((notice) => (
@@ -104,7 +103,8 @@ function Streak({ engine }: { engine: Engine }) {
 }
 
 function Old({ engine, snapshot, today }: { engine: Engine; snapshot: Snapshot; today: Today }) {
-  const from = new Date(today.now).toLocaleString(undefined, { day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' });
+  const at = new Date(today.now);
+  const from = `${unbroken(at.toLocaleDateString(undefined, { day: 'numeric', month: 'long' }))}, ${unbroken(at.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }))}`;
   return (
     <View style={styles.old}>
       <Words kind="soft" style={styles.centre}>

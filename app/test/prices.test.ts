@@ -1,20 +1,21 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Price } from '../src/core/details';
-import { dateText, dayOf, describePrices, inOrder, money, nearest, plot } from '../src/core/prices';
+import { dateText, dayOf, describePrices, inOrder, money, nearest, plot, unbroken } from '../src/core/prices';
 
 const week = (i: number, priceCents: number): Price => ({ date: new Date(Date.UTC(2026, 7, 10 + i * 7)).toISOString().slice(0, 10), priceCents });
 const prices = [827, 839, 787, 796, 1042, 885].map((cents, i) => week(i, cents));
 const inset = { x: 8, y: 20 };
 
 test('the line stays inside its box, lowest at the bottom, highest at the top', () => {
-  const { points, low, high, path } = plot(prices, 300, 140, inset)!;
+  const { points, low, high, path, area } = plot(prices, 300, 140, inset)!;
   assert.deepEqual([low, high], [2, 4]);
   assert.equal(points[2]!.y, 120);
   assert.equal(points[4]!.y, 20);
   assert.deepEqual([points[0]!.x, points[5]!.x], [8, 292]);
   assert.ok(points.every(({ x, y }) => x >= 8 && x <= 292 && y >= 20 && y <= 120));
   assert.match(path, /^M8\.0 .*L292\.0 /);
+  assert.equal(area, `${path}L292.0 120.0L8.0 120.0Z`); // the grey ends at the lowest, above what is written there
 });
 
 test('a price that never moved, one price, none, and no room', () => {
@@ -30,6 +31,13 @@ test('the finger picks the nearest week', () => {
   assert.equal(nearest(points, -50), 0);
   assert.equal(nearest(points, 999), 5);
   assert.equal(nearest(points, points[3]!.x + 5), 3);
+});
+
+test('a date is never broken across two lines', () => {
+  for (const text of [dateText('2026-11-02'), dateText('2026-11-02', 'short'), dayOf('2026-11-02T10:00:00Z', 'UTC'), unbroken('2 Nov 2026, 11:58\u202fPM')]) {
+    assert.ok(!/[^\S\u00a0]/.test(text), text);
+    assert.match(text, /\u00a0/);
+  }
 });
 
 test('the last date is the last date, in any order and any time zone', () => {
