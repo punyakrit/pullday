@@ -48,7 +48,9 @@ adb reverse tcp:4000 tcp:4000
 ORG_GRADLE_PROJECT_reactNativeArchitectures=arm64-v8a npx expo run:android --variant release --no-bundler
 ```
 
-That is a real release build against the backend on this computer. The first part builds only for 64 bit phones and for emulators on Apple computers, which is much faster. For a 32 bit phone or an emulator on an Intel computer, leave it out: then it builds for all four. The log in screen has a row of test accounts that fill in with a tap. The dev menu is under the person icon, for the six test accounts, in every build.
+That is a real release build against the backend on this computer. The first part builds only for 64 bit phones and for emulators on Apple computers, which is much faster. For a 32 bit phone or an emulator on an Intel computer, leave it out: then it builds for all four.
+
+Timed on 24 November 2026 on a new Mac, from `git clone` to the open app: 8:50 with empty npm and Gradle caches, most of it downloads and the first build. The Postgres image and the Android SDK with NDK 27.1 were already there. Building for all four took 11:45. The log in screen has a row of test accounts that fill in with a tap. The dev menu is under the person icon, for the six test accounts, in every build.
 
 For a build that reloads as you edit: `npm run android`, with `adb reverse tcp:8081 tcp:8081` as well.
 
