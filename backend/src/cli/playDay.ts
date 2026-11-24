@@ -57,6 +57,7 @@ async function play(): Promise<void> {
   const details = await call('GET', `/cards/${done.card.id}`);
   check('card details', details.priceHistory.length === 13 && Number.isInteger(details.priceCents), `${details.priceCents} cents on ${details.priceDate}`);
   const image = await fetch(`${base}/images/${done.card.id}?w=400`);
+  await image.arrayBuffer(); // a picture left unread holds the connection, and the script never ended
   const broken = image.status === 404; // 27 of 1993 originals are broken links
   check('card picture', (image.ok && image.headers.get('content-type') === 'image/webp') || broken, broken ? 'no picture for this card' : 'webp');
 
