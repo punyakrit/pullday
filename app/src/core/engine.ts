@@ -51,7 +51,7 @@ export type Snapshot = {
   streakKnown: boolean;
   /** The last one we were told. Null: never, on this phone. */
   streak: number | null;
-  /** What is shown is only the last we knew. */
+  /** Offline, or the call for it failed: what is shown is only the last we knew. Not while we are asking. */
   streakOld: boolean;
   /** While the sheet is open: what was said before it opened. */
   payment: Payment | null;
@@ -101,6 +101,7 @@ export class Engine {
   private lastStreak: number | null;
   private open: Open | null = null;
   private connection: Connection = 'unknown';
+  private streakMissed = false; // the last call that would have told us the streak failed
   private syncing = false;
   private unsaved = false;
   private paying: Promise<Sheet | null> | null = null;
@@ -258,6 +259,7 @@ export class Engine {
           // Too old for the server to take. It must not hold up everything behind it for ever.
           this.refused(item, new Refused(409, 'too_late', ''));
         } else {
+          this.streakMissed = this.saved.outbox.some((other) => other.kind === 'complete');
           this.failed(err);
           return false;
         }
@@ -275,6 +277,7 @@ export class Engine {
       return;
     }
     const { data } = await this.deps.api.call<Completed>('POST', path, { answers: item.answers });
+    this.streakMissed = false;
     const play = this.saved.plays[item.challengeId];
     if (play) play.accepted = { card: data.card, score: data.score };
     // With more days waiting behind it, this reply's streak is not the end of it.
@@ -352,10 +355,13 @@ export class Engine {
     this.publish();
     if (!(await this.sendFirst())) return;
     if (this.stopped || !mayContact(this.saved, this.clock.now())) return;
+    let told = false;
     try {
       const { settled } = this;
       const { data, sentAt, receivedAt } = await this.deps.api.call<Today>('GET', '/today');
       this.heard();
+      told = true;
+      this.streakMissed = false;
       if (this.settled === settled) this.settled = null; // asked after the payment was over: this is the newer word
       this.applyToday(data, sentAt, receivedAt);
       if (!mayContact(this.saved, this.clock.now())) return;
@@ -364,6 +370,7 @@ export class Engine {
       this.freshAt = this.deps.local();
       writeRow(this.deps.storage, this.keys.owned, OWNED, this.owned);
     } catch (err) {
+      if (!told) this.streakMissed = true;
       if (!(err instanceof Refused)) this.failed(err);
     }
   }
@@ -773,7 +780,7 @@ export class Engine {
       unsaved: this.unsaved,
       streakKnown,
       streak: this.lastStreak,
-      streakOld: !streakKnown || this.connection === 'offline' || this.connection === 'trouble',
+      streakOld: this.connection === 'offline' || this.connection === 'trouble' || (!streakKnown && this.streakMissed),
       payment,
       buying: this.buying?.id ?? null,
       offer: offered && !this.isPending(payment) && this.clock.now() < Date.parse(winBack.closesAt) ? winBack : null,

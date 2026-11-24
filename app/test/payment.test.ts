@@ -459,6 +459,47 @@ describe('the streak when it may be old', () => {
     assert.deepEqual([engine.getSnapshot().today!.streak, engine.getSnapshot().streakOld], [14, false]);
   });
 
+  test('online, after the last swipe: as it was until the server answers, and old only if that fails', async () => {
+    const world = new World('2026-11-23T20:00:00Z');
+    world.normal({ streak: 12 });
+    const engine = world.open();
+    await engine.sync();
+    const respond = world.respond;
+    let working = false;
+    world.respond = (method, path, body) => {
+      if (path.endsWith('/complete') && !working) return { status: 503, body: { error: 'down', message: '' } };
+      const reply = respond(method, path, body);
+      if (working && reply !== 'down' && (path.endsWith('/complete') || path === '/today')) (reply.body as { streak: number }).streak = 13;
+      return reply;
+    };
+    const said: boolean[] = [];
+    const leave = engine.subscribe(() => engine.getSnapshot().connection === 'online' && said.push(engine.getSnapshot().streakOld));
+    playAll(engine, engine.getSnapshot().today!.challenge);
+    assert.deepEqual([engine.getSnapshot().streakKnown, engine.getSnapshot().streakOld], [false, false]);
+    await settle();
+    leave();
+    assert.ok(said.every((old) => !old));
+    assert.deepEqual([engine.getSnapshot().streak, engine.getSnapshot().streakOld], [12, true]); // it failed
+    engine.get('/cards/x').catch(() => {});
+    await settle();
+    assert.equal(engine.getSnapshot().streakOld, true);
+    working = true;
+    await engine.sync();
+    assert.deepEqual([engine.getSnapshot().streak, engine.getSnapshot().streakOld], [13, false]);
+  });
+
+  test('online at midnight: as it was while the new day is fetched', async () => {
+    const world = new World('2026-11-23T20:00:00Z');
+    world.normal({ streak: 12 });
+    const engine = world.open();
+    await engine.sync();
+    world.clock = '2026-11-24T00:01:00Z';
+    const syncing = engine.sync();
+    assert.deepEqual([engine.getSnapshot().streakKnown, engine.getSnapshot().streakOld], [false, false]);
+    await syncing;
+    assert.equal(engine.getSnapshot().streakOld, false);
+  });
+
   test('the flame always has a number on a phone that was ever told one', async () => {
     const world = new World('2026-11-23T20:00:00Z');
     world.normal({ streak: 12 });

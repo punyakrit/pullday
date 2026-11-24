@@ -71,7 +71,7 @@ export function Done({ engine, snapshot, view }: Props) {
           <Words kind="label">
             {snapshot.streakKnown
               ? `${streak} day${streak === 1 ? '' : 's'} in a row`
-              : snapshot.unsent > 0
+              : snapshot.unsent > 0 && snapshot.streakOld
                 ? 'Your streak updates when you are online'
                 : 'Checking your streak'}
           </Words>
