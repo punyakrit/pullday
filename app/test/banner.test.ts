@@ -22,6 +22,19 @@ describe('the line above Today', () => {
     }
   });
 
+  test('an offer is not hidden by what can be read at any time, only by what was just done', () => {
+    const offer = { missedDay: '2026-11-22', lostStreak: 12, closesAt: '2026-11-25T00:00:00Z', priceCents: 499 };
+    const told = { ...emptySaved(), notices: [{ id: 'a', text: 'A freeze kept your streak that day.' }] };
+    assert.equal(bannerFor({ ...calm, saved: told })?.kind, 'notice');
+    assert.deepEqual(bannerFor({ ...calm, saved: told, offer }), { kind: 'winBack', lostStreak: 12 });
+    const lost = { ...emptySaved(), notices: [...told.notices, { id: 'b', text: 'It did not count.', first: true as const }] };
+    assert.deepEqual(bannerFor({ ...calm, saved: lost, offer }), { kind: 'notice', id: 'b', text: 'It did not count.' });
+    assert.deepEqual(bannerFor({ ...calm, saved: lost }), { kind: 'notice', id: 'b', text: 'It did not count.' });
+    const payment = { id: 'p', missedDay: offer.missedDay, lostStreak: 12, state: 'declined', problem: null } as const;
+    assert.deepEqual(bannerFor({ ...calm, saved: told, offer, payment }), { kind: 'payment', state: 'declined' }); // it is about the offer
+    assert.equal(bannerFor({ ...calm, saved: told, offer, unsaved: true })?.kind, 'full');
+  });
+
   test('one at a time, the most useful first', () => {
     const view: View = { ...playing, lateUntil: 5, waiting: reveal };
     let now: Parameters<typeof bannerFor>[0] = { ...bad, view };

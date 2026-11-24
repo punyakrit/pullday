@@ -7,7 +7,7 @@ import { ownedNow } from '../../core/collection';
 import type { Engine } from '../../core/engine';
 import { dayOf } from '../../core/prices';
 import type { Card } from '../../core/types';
-import { cardOnPhone } from '../../lib/catalogue';
+import { useCards, useCatalogue } from '../../lib/catalogue';
 import { useSession } from '../../lib/session';
 import { gridFor } from '../../lib/grid';
 import { openedFrom } from '../../lib/openCard';
@@ -32,7 +32,8 @@ export default function CardScreen() {
 
 function CardDetails({ engine, id }: { engine: Engine; id: string }) {
   const snapshot = useEngine(engine);
-  const card = cardOnPhone(id); // the list it was opened from has it
+  const cards = useCards();
+  const card = cards?.byId.get(id) ?? null;
   const insets = useSafeAreaInsets();
   const { owned, saved } = snapshot;
   const mine = useMemo(() => ownedNow(owned, saved).find((one) => one.cardId === id) ?? null, [id, owned, saved]);
@@ -67,12 +68,25 @@ function CardDetails({ engine, id }: { engine: Engine; id: string }) {
             <More engine={engine} card={card} />
           </>
         ) : (
-          <Words kind="soft" style={styles.centre}>
-            This card is not on this phone yet. Connect to see it.
-          </Words>
+          <View style={styles.waiting}>
+            <NoCard engine={engine} known={cards !== null} />
+          </View>
         )}
       </ScrollView>
     </Opening>
+  );
+}
+
+/** A link can lead here before the list of cards is on the phone, or to a card there is not. */
+function NoCard({ engine, known }: { engine: Engine; known: boolean }) {
+  const { connection, syncing } = useEngine(engine);
+  useCatalogue(engine, connection);
+  if (known) return <Words kind="soft">There is no such card.</Words>;
+  if (syncing || (connection !== 'offline' && connection !== 'trouble')) return <ActivityIndicator color={colors.soft} accessibilityLabel="Getting the card" />;
+  return (
+    <Words kind="soft" style={styles.centre}>
+      {connection === 'trouble' ? 'Pullday is having trouble. Try again in a moment.' : 'This card is not on this phone yet. Connect to see it.'}
+    </Words>
   );
 }
 
@@ -123,7 +137,7 @@ function More({ engine, card }: { engine: Engine; card: Card }) {
         <Fact name="Number" value={card.number ?? 'Not numbered'} />
         {card.variety !== null && <Fact name="Variety" value={card.variety} />}
         <Fact name="Grade" value={`${shown?.grader ?? 'PSA'} ${card.grade}`} />
-        <Fact name="Population" value={shown ? `${shown.population.toLocaleString('en-US')} at this grade` : ' '} last />
+        <Fact name="Population" value={shown ? `${shown.population.toLocaleString('en-US')} at this grade` : loading || !settled ? ' ' : 'Not known yet'} last />
       </Rise>
       {shown ? (
         <>

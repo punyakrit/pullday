@@ -46,7 +46,7 @@ export const isOver = (purchase: Purchase): boolean => OVER.includes(purchase.st
 /** It is about the break that is on offer, and not an earlier one. */
 export const isFor = (payment: Payment | null, offer: WinBack | null): boolean => payment !== null && payment.missedDay === offer?.missedDay;
 
-export type Notice = { id: string; text: string };
+export type Notice = { id: string; text: string; first?: true };
 
 export type Saved = {
   plays: Record<string, Play>;

@@ -1,48 +1,21 @@
-import { useEffect, useState } from 'react';
-import { type Catalogue, catalogueOf } from '../core/collection';
+import { useEffect, useSyncExternalStore } from 'react';
+import { CatalogueKeeper } from '../core/catalogue';
+import type { Catalogue } from '../core/collection';
 import type { Engine } from '../core/engine';
-import { CATALOGUE, readRow, writeRow } from '../core/rows';
-import type { Card } from '../core/types';
 import { storage } from './storage';
 
-const CARDS = 'catalogue';
-const ETAG = 'catalogue-etag';
-let held: Catalogue | null = null;
+const keeper = new CatalogueKeeper(storage);
 
-function read(): Catalogue | null {
-  if (!held) {
-    const cards = readRow(storage, CARDS, CATALOGUE).value; // not usable: downloaded again
-    if (cards) held = catalogueOf(cards);
-  }
-  return held;
-}
+/** After a sync: so the list is here before anyone is offline. */
+export const ensureCatalogue = (engine: Engine): void => void keeper.ensure((path, headers) => engine.get(path, headers));
 
-/**
- * Every card, downloaded once and kept. Asked about again only to see if it changed, or when there was
- * none and the connection is back.
- */
+/** What is on the phone, and the moment it arrives. */
+export const useCards = (): Catalogue | null => useSyncExternalStore(keeper.subscribe, keeper.now);
+
+/** The same, and it is asked if it changed. Or, when there is none, whenever the connection changes. */
 export function useCatalogue(engine: Engine, connection: string): Catalogue | null {
-  const [catalogue, setCatalogue] = useState(read);
-  const wanted = catalogue !== null || connection; // once if it is here, with every change if it is not
-  useEffect(() => {
-    let live = true;
-    const etag = held ? storage.get(ETAG) : null;
-    engine
-      .get<{ cards: Card[] }>('/catalogue', etag ? { 'if-none-match': etag } : {})
-      .then((reply) => {
-        if (reply.notModified) return;
-        held = catalogueOf(reply.data.cards);
-        const kept = writeRow(storage, CARDS, CATALOGUE, reply.data.cards);
-        if (kept && reply.etag) storage.set(ETAG, reply.etag); // never the new mark on the old cards
-        if (live) setCatalogue(held);
-      })
-      .catch(() => {}); // what is on the phone is still good
-    return () => {
-      live = false;
-    };
-  }, [engine, wanted]);
+  const catalogue = useCards();
+  const wanted = catalogue !== null || connection;
+  useEffect(() => void keeper.refresh((path, headers) => engine.get(path, headers)), [engine, wanted]);
   return catalogue;
 }
-
-/** What is already here, for a screen that does not fetch it. */
-export const cardOnPhone = (id: string): Card | null => read()?.byId.get(id) ?? null;

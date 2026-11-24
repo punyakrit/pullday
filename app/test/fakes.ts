@@ -49,6 +49,7 @@ export class World {
   calls: string[] = [];
   signedOut = 0;
   backOnline = 0;
+  synced = 0;
   timers: { work: () => void; ms: number }[] = [];
   respond: (method: string, path: string, body?: unknown) => { status: number; body: unknown } | 'down' = () => ({ status: 200, body: {} });
 
@@ -125,6 +126,7 @@ export class World {
       local: () => this.time,
       onSignedOut: () => void this.signedOut++,
       onOnline: () => void this.backOnline++,
+      onSynced: () => void this.synced++,
       setTimer: (work, ms) => {
         this.timers.push({ work, ms });
         return () => void (this.timers = this.timers.filter((timer) => timer.work !== work));

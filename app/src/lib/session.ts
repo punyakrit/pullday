@@ -7,6 +7,7 @@ import { Api, Refused, Unreachable } from '../core/api';
 import { Engine } from '../core/engine';
 import { LoginKeeper } from '../core/login';
 import type { User } from '../core/types';
+import { ensureCatalogue } from './catalogue';
 import { API_URL, TEST_ACCOUNTS } from './config';
 import { prefetchBundle } from './images';
 import { pictures } from './pictures';
@@ -52,7 +53,7 @@ const login = new LoginKeeper(
 
 function enter(user: User, token: string): void {
   api.startSession(token);
-  const engine = new Engine({
+  const engine: Engine = new Engine({
     api,
     storage,
     user,
@@ -61,6 +62,7 @@ function enter(user: User, token: string): void {
     local: Date.now,
     onSignedOut: () => void leave('Your session ended. Log in again to carry on. Nothing on this phone was lost.'),
     onBundle: prefetchBundle,
+    onSynced: () => ensureCatalogue(engine),
     onOnline: () => pictures.retry(),
   });
   set({ status: 'in', user, engine });

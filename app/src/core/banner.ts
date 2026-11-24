@@ -26,8 +26,11 @@ export function bannerFor({
 }: Pick<Snapshot, 'view' | 'unsaved' | 'saved' | 'connection' | 'unsent' | 'payment' | 'offer'>): Banner | null {
   if (view.kind === 'reveal') return null;
   if (unsaved) return { kind: 'full' };
-  const notice = saved.notices[0];
-  if (notice) return { kind: 'notice', ...notice };
+  const [notice] = saved.notices;
+  const urgent = saved.notices.find((one) => one.first);
+  if (urgent) return { kind: 'notice', id: urgent.id, text: urgent.text };
+  // An offer ends, so it is not behind what can be read at any time. All of it is on the streak screen too.
+  if (notice && !offer) return { kind: 'notice', id: notice.id, text: notice.text };
   // While there is an offer no payment is under way. What became of one for an earlier break is not the news.
   if (payment && payment.state !== 'unpaid' && (!offer || isFor(payment, offer))) return { kind: 'payment', state: payment.state };
   if (view.kind === 'challenge' && view.lateUntil !== null) return { kind: 'late', until: view.lateUntil };

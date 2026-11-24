@@ -86,6 +86,8 @@ type Deps = {
   onOnline?: () => void;
   /** Called with the challenges and cards that may be needed soon. */
   onBundle?: (today: Today) => void;
+  /** Everything is heard: a moment for what is not urgent. */
+  onSynced?: () => void;
   setTimer?: (work: () => void, ms: number) => () => void;
 };
 
@@ -320,7 +322,7 @@ export class Engine {
     if (missing && item.kind === 'start' && !this.saved.outbox.some((other) => other.kind === 'complete' && other.challengeId === item.challengeId)) {
       const lost = this.saved.plays[item.challengeId]?.answers.length ?? 0;
       delete this.saved.plays[item.challengeId]; // it must not hold up the asking either
-      if (lost > 0) this.notice(NO_LONGER);
+      if (lost > 0) this.notice(NO_LONGER, true);
     }
     if (item.kind !== 'complete') return;
     delete this.saved.plays[item.challengeId];
@@ -329,13 +331,13 @@ export class Engine {
     delete this.saved.seen[item.challengeId];
     const lost = wasShown ? ' The card you saw was not added.' : '';
     if (err.code === 'too_late') {
-      this.notice(`A challenge reached us after its day was over, so it did not count.${lost}`);
+      this.notice(`A challenge reached us after its day was over, so it did not count.${lost}`, true);
     } else if (err.code === 'too_early') {
-      this.notice("That challenge is for tomorrow. Check the date on your phone. It will be here when it's time.");
+      this.notice("That challenge is for tomorrow. Check the date on your phone. It will be here when it's time.", true);
     } else if (missing) {
-      this.notice(`${NO_LONGER}${lost}`);
+      this.notice(`${NO_LONGER}${lost}`, true);
     } else {
-      this.notice(`The server did not accept that challenge, so it did not count.${lost}`);
+      this.notice(`The server did not accept that challenge, so it did not count.${lost}`, true);
     }
   }
 
@@ -415,6 +417,7 @@ export class Engine {
       this.owned = collection.cards;
       this.freshAt = this.deps.local();
       writeRow(this.deps.storage, this.keys.owned, OWNED, this.owned);
+      this.deps.onSynced?.();
     } catch (err) {
       if (!told) this.streakMissed = true;
       if (!told && wanted) this.askToday = true; // still
@@ -781,9 +784,10 @@ export class Engine {
     this.notice(text);
   }
 
-  private notice(text: string): void {
+  /** `first`: about what the person has just done, so it is said before anything else. */
+  private notice(text: string, first = false): void {
     const id = `${this.clock.now()}-${this.saved.notices.length}`;
-    this.saved.notices = [...this.saved.notices, { id, text }];
+    this.saved.notices = [...this.saved.notices, first ? { id, text, first } : { id, text }];
   }
 
   private heard(): void {
@@ -857,6 +861,6 @@ export class Engine {
     if (!unusable) return value ?? emptySaved();
     storage.set(this.keys.aside, storage.get(this.keys.saved)!);
     const text = 'This phone could not read what it had saved. A challenge that was not sent yet may be missing.';
-    return { ...emptySaved(), notices: [{ id: 'unreadable', text }] };
+    return { ...emptySaved(), notices: [{ id: 'unreadable', text, first: true }] };
   }
 }

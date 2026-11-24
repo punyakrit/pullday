@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
+import { CatalogueKeeper } from '../src/core/catalogue';
 import { catalogueOf, ownedNow } from '../src/core/collection';
 import type { OwnedCard } from '../src/core/engine';
 import { emptySaved } from '../src/core/state';
@@ -8,6 +9,63 @@ import { World, card, playAll, settle } from './fakes';
 
 const own = (cardId: string, seen = true): OwnedCard => ({ cardId, acquiredAt: '2026-11-01T00:00:00Z', revealSeenAt: seen ? '2026-11-01T00:00:00Z' : null });
 const ids = (list: OwnedCard[]) => list.map((one) => one.cardId);
+
+describe('the list of cards on the phone', () => {
+  async function phone() {
+    const world = new World('2026-11-23T12:00:00Z');
+    world.normal();
+    const normal = world.respond;
+    world.respond = (method, path, body) => (path === '/catalogue' ? { status: 200, body: { cards: [card('a'), card('b')] } } : normal(method, path, body));
+    const engine = world.open();
+    const keeper = new CatalogueKeeper(world.storage);
+    const get = <T>(path: string, headers?: Record<string, string>) => engine.get<T>(path, headers);
+    return { world, engine, keeper, get };
+  }
+
+  test('it is asked for after a sync that worked, and not after one that did not', async () => {
+    const { world, engine } = await phone();
+    world.online = false;
+    await engine.sync();
+    assert.equal(world.synced, 0);
+    world.online = true;
+    await engine.sync();
+    assert.equal(world.synced, 1);
+  });
+
+  test('once, kept, and there offline after a kill', async () => {
+    const { world, engine, keeper, get } = await phone();
+    await engine.sync();
+    world.calls = [];
+    let told = 0;
+    keeper.subscribe(() => told++);
+    assert.equal(keeper.now(), null);
+    await Promise.all([keeper.ensure(get), keeper.ensure(get), keeper.refresh(get)]);
+    assert.deepEqual(world.calls, ['GET /catalogue']); // the pictures are not asked for
+    assert.equal(told, 1);
+    await keeper.ensure(get);
+    assert.equal(world.calls.length, 1);
+    world.online = false;
+    assert.equal(new CatalogueKeeper(world.storage).now()?.byId.size, 2);
+  });
+
+  test('it failed: nothing is thrown, and the next sync asks again', async () => {
+    const { world, engine, keeper, get } = await phone();
+    await engine.sync();
+    world.online = false;
+    await keeper.ensure(get);
+    assert.equal(keeper.now(), null);
+    world.online = true;
+    await keeper.ensure(get);
+    assert.equal(keeper.now()?.list.length, 2);
+  });
+
+  test('the same list is given until it changes, so nothing is drawn again', async () => {
+    const { engine, keeper, get } = await phone();
+    await engine.sync();
+    await keeper.ensure(get);
+    assert.equal(keeper.now(), keeper.now());
+  });
+});
 
 describe('the catalogue', () => {
   test('set by set, by number, the ones without a number last', () => {
