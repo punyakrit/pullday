@@ -5,11 +5,11 @@ A card collecting app built around a daily habit. This is a test app for a work 
 - `backend/` Node + TypeScript API on Postgres. The daily loop, win back with Stripe, and freezes. The binder is not built.
 - `app/` React Native + TypeScript, Expo SDK 58. The daily loop, the collection and card details, the streak with win back, and the shop. Plus a dev menu. Measurements are in `docs/MEASUREMENTS.md`.
 - Titles are set in Instrument Serif, free under the OFL: `app/assets/fonts/InstrumentSerif-OFL.txt`.
-- `docs/PLAN.md` build order. `DECISIONS.md` what and why. `AI.md` how AI was used.
+- `DECISIONS.md` what and why, on one page. `docs/DETAILS.md` the long version. `AI.md` how AI was used. `docs/PLAN.md` the build order.
 
 ## Run the backend
 
-You need Docker (running) and Node 22 or newer.
+You need Docker (running) and Node 22 or newer. From the top of the clone:
 
 ```bash
 cd backend
@@ -20,7 +20,7 @@ npm run seed
 npm start
 ```
 
-The API is now on `http://localhost:4000`. A phone on the same wifi reaches it on your computer's address, port 4000.
+The API is now on `http://localhost:4000`. It keeps this terminal. A phone on the same wifi reaches it on your computer's address, port 4000.
 
 `npm run seed` creates the tables, loads the catalogue and puts all six test accounts in their starting state as of right now. Run it again any time, it is also the way to freshen accounts that were seeded days ago. It uses this computer's time zone. For another one: `npm run seed -- Europe/London`.
 
@@ -38,23 +38,23 @@ A webhook is not needed: the server asks Stripe itself. To have one, point it at
 
 ## Run the app
 
-Android first. You need JDK 17 to 21, the Android SDK, and a phone with USB debugging on (or an emulator). The backend must be running.
+Android first. You need JDK 17 to 21, the Android SDK, and a phone with USB debugging on (or an emulator). The backend must be running. In a second terminal, from the top of the clone:
 
 ```bash
 cd app
 cp .env.example .env
 npm ci
 adb reverse tcp:4000 tcp:4000
-npx expo run:android --variant release
+ORG_GRADLE_PROJECT_reactNativeArchitectures=arm64-v8a npx expo run:android --variant release --no-bundler
 ```
 
-That is a real release build against the backend on this computer, about 6 minutes the first time. The log in screen has a row of test accounts that fill in with a tap. The dev menu is under the person icon, for the six test accounts, in every build.
+That is a real release build against the backend on this computer. The first part builds only for 64 bit phones and for emulators on Apple computers, which is much faster. For a 32 bit phone or an emulator on an Intel computer, leave it out: then it builds for all four. The log in screen has a row of test accounts that fill in with a tap. The dev menu is under the person icon, for the six test accounts, in every build.
 
 For a build that reloads as you edit: `npm run android`, with `adb reverse tcp:8081 tcp:8081` as well.
 
 iOS simulator: `npx expo run:ios --configuration Release`. `expo-dev-client` is pinned to 58.0.19 because newer ones need Xcode 27.1. Drop the pin and the override in `app/package.json` once you have it.
 
-Another backend: set `EXPO_PUBLIC_API_URL` in `app/.env` and build again. Plain `http://` is only allowed when that address is `http://`.
+Another backend: set `EXPO_PUBLIC_API_URL` in `app/.env` and build again. Plain `http://` is only allowed when that address is `http://`. To try airplane mode, use your computer's wifi address and pull the cable out: `adb reverse` goes through the cable and stays connected.
 
 ```bash
 npm run typecheck
@@ -72,7 +72,7 @@ Streak freezes are bought in a fake store inside the app (`app/src/core/store.ts
 
 ## Check the backend
 
-In a second terminal, with the server running:
+In another terminal, from the top of the clone, with the server running:
 
 ```bash
 cd backend

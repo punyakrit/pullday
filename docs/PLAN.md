@@ -14,7 +14,7 @@
 | 5 | Streak screen and win back with Stripe test mode. Built, on an emulator and a simulator, with real Stripe test payments | 1.75 | 12.25 |
 | 6 | Shop and the fake store for freezes. Built, on an emulator and a simulator | 1.0 | 13.25 |
 | 7 | Polish and a new look. Built, on an emulator and a simulator. A cheap Android and the check-in feedback are open | 1.25 | 14.5 |
-| 8 | Recording, README from a fresh clone, final DECISIONS and AI notes | 0.5 | 15.0 |
+| 8 | README from a fresh clone, final DECISIONS and AI notes: done. The recording and the real phone are open | 0.5 | 15.0 |
 
 Planned cut: binder screens. The table and the collector seed exist so the account is complete, but binder pages only get built if step 7 finishes early.
 
