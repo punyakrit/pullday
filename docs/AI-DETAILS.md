@@ -22,6 +22,12 @@ Step 2, all of it: the app (Expo SDK 58), its tests, the icons, the image warmin
 
 ## Where AI was wrong
 
+After step 8:
+
+- **The last swipe could end on an empty screen.** The owner found it on a real phone, a OnePlus. The account was reset on the server while the app was open, so the finish got 404. The app deleted the play, said nothing and did not ask for `/today`, and the deck kept its own 8 answers. Any refused finish ended like that. AI had a test called "dropped without a word", which asserted it.
+- **A refused start was ignored**, also when it said that there is no such challenge.
+- **On a full phone with no connection the last swipe ended on an empty deck too**, with only the line above it.
+
 On the new look (step 7):
 
 - **The first build cut "Done for today" to "Done for"** on Android. Seen in the screenshots.
