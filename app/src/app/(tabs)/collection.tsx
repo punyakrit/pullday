@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.page },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.l, paddingTop: space.s, paddingBottom: space.s },
   count: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
-  of: { paddingBottom: 4 },
+  of: { paddingBottom: 1 },
   filter: { flexDirection: 'row', marginHorizontal: space.l, marginBottom: space.m, padding: 3, borderRadius: 14, backgroundColor: '#E7E7E7' },
   choice: { flex: 1, minHeight: 42, alignItems: 'center', justifyContent: 'center' },
   chosen: { position: 'absolute', left: 3, top: 3, bottom: 3, borderRadius: 11, backgroundColor: colors.panel, borderWidth: hairline, borderColor: colors.line },
