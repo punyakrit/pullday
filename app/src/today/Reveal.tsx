@@ -77,6 +77,7 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
   const lift = useSharedValue(0); // how far the finger has pulled the card out
   const sleeve = useSharedValue(0); // 0 around the card, 1 gone
   const flip = useSharedValue(0); // 0 back, 1 face
+  const hush = useSharedValue(0); // 1 from the pull until the card has turned: nothing is written around it
   const glow = useSharedValue(0);
   const turn = useSharedValue(0);
   const sweep = useSharedValue(0);
@@ -99,10 +100,10 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
   }, [hint, reduced, stage]);
 
   const reset = useCallback(() => {
-    for (const value of [lift, sleeve, flip, glow, turn, sweep, burst, tilt]) value.value = 0;
+    for (const value of [lift, sleeve, flip, hush, glow, turn, sweep, burst, tilt]) value.value = 0;
     sealed.value = true;
     send({ kind: 'reset' });
-  }, [burst, flip, glow, lift, sealed, sleeve, sweep, tilt, turn]);
+  }, [burst, flip, glow, hush, lift, sealed, sleeve, sweep, tilt, turn]);
 
   // A call, the home button, another app: if it was not seen yet, it starts over.
   useEffect(() => {
@@ -121,10 +122,11 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
     'worklet';
     if (!sealed.value) return;
     sealed.value = false;
+    hush.value = withTiming(1, { duration: 90, reduceMotion: ReduceMotion.Never });
     sleeve.value = withTiming(1, { duration: 380, easing: Easing.in(Easing.quad) });
     lift.value = withSpring(0, { duration: 420, dampingRatio: 0.85 });
     scheduleOnRN(openSleeve);
-  }, [lift, openSleeve, sealed, sleeve]);
+  }, [hush, lift, openSleeve, sealed, sleeve]);
 
   const pan = usePanGesture({
     maxPointers: 1,
@@ -197,6 +199,11 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
     return () => clearTimeout(face);
   }, [burst, flip, glow, reduced, sweep, tilt, turn, turned]);
 
+  // The words change while they cannot be seen, and then come back.
+  useEffect(() => {
+    if (stage === 'open') hush.value = withTiming(0, { duration: 260, reduceMotion: ReduceMotion.Never });
+  }, [hush, stage]);
+
   useEffect(() => {
     if (stage !== 'open') return;
     const timer = setInterval(() => {
@@ -226,8 +233,9 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
       { scale: interpolate(flip.value, [0.5, 0.8, 1], [1, 1.05, 1], Extrapolation.CLAMP) },
     ],
   }));
-  // The card is pulled up over the title, so the title makes way.
-  const titleStyle = useAnimatedStyle(() => ({ opacity: interpolate(lift.value, [4, 44], [1, 0], Extrapolation.CLAMP) }));
+  // The card is pulled up over the title, so the title makes way. Not if it is beside the card.
+  const titleStyle = useAnimatedStyle(() => ({ opacity: Math.min(short ? 1 : interpolate(lift.value, [4, 44], [1, 0], Extrapolation.CLAMP), 1 - hush.value) }));
+  const belowStyle = useAnimatedStyle(() => ({ opacity: 1 - hush.value }));
   const sleeveStyle = useAnimatedStyle(() => ({
     opacity: interpolate(sleeve.value, [0, 0.8, 1], [1, 1, 0]),
     transform: [{ translateY: sleeve.value * height * 0.7 }],
@@ -265,7 +273,7 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
 
   return (
     <View style={styles.screen} onLayout={({ nativeEvent: { layout } }) => setArea({ width: layout.width, height: layout.height })}>
-      <Animated.View style={[styles.top, short && styles.topBeside, column, !short && titleStyle]} onLayout={measure('above')}>
+      <Animated.View style={[styles.top, short && styles.topBeside, column, titleStyle]} onLayout={measure('above')}>
         <Words kind={short ? 'label' : 'title'} style={styles.centre} numberOfLines={short ? 1 : undefined} accessibilityRole="header">
           {says.title}
         </Words>
@@ -315,7 +323,7 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
         </View>
       </GestureDetector>
 
-      <View style={[styles.bottom, short && styles.bottomBeside, column]} onLayout={measure('below')}>
+      <Animated.View style={[styles.bottom, short && styles.bottomBeside, column, belowStyle]} onLayout={measure('below')}>
         {stage === 'open' ? (
           <>
             <View style={styles.name}>
@@ -343,7 +351,7 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
             <Button title="Pull it for me" kind="dark" onPress={letGo} disabled={stage !== 'sealed'} />
           </>
         )}
-      </View>
+      </Animated.View>
     </View>
   );
 }
