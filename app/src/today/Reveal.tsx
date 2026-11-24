@@ -24,6 +24,7 @@ import { imageUrl } from '../lib/images';
 import { usePicture } from '../lib/pictures';
 import { useCardRef } from '../lib/useCardRef';
 import { Button } from '../ui/Button';
+import { Beside } from '../ui/Beside';
 import { CardText, describeCard } from '../ui/CardImage';
 import { Icon, Shape } from '../ui/Icons';
 import { Words } from '../ui/Words';
@@ -326,8 +327,10 @@ export function Reveal({ reveal, today, onShown, onClose }: Props) {
       <Animated.View style={[styles.bottom, short && styles.bottomBeside, column, belowStyle]} onLayout={measure('below')}>
         {stage === 'open' ? (
           <>
-            <View style={styles.name}>
-              <Shape rarity={card.rarity} size={22} bright />
+            <View style={[styles.name, styles.level]}>
+              <Beside kind="heading">
+                <Shape rarity={card.rarity} size={22} bright />
+              </Beside>
               <Words kind="heading" numberOfLines={short ? 1 : 2} style={{ flexShrink: 1, color: dark.ink }}>
                 {card.name}
               </Words>
@@ -385,6 +388,7 @@ const styles = StyleSheet.create({
   spinner: { position: 'absolute' },
   bottom: { zIndex: 1, paddingHorizontal: space.xl, paddingBottom: space.l, gap: space.s, minHeight: 150, justifyContent: 'flex-end' },
   name: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s },
+  level: { alignItems: 'flex-start' },
   back: { backgroundColor: '#1E1E1E', borderWidth: hairline, borderColor: dark.line, padding: 10 },
   backInner: { flex: 1, borderWidth: 2, borderColor: dark.line, backgroundColor: dark.panel, alignItems: 'center', justifyContent: 'center', gap: 10 },
 });

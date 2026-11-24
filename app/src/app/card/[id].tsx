@@ -14,6 +14,7 @@ import { openedFrom } from '../../lib/openCard';
 import { useDetails } from '../../lib/useDetails';
 import { useEngine } from '../../lib/useEngine';
 import { Button } from '../../ui/Button';
+import { Beside } from '../../ui/Beside';
 import { CardImage, describeCard } from '../../ui/CardImage';
 import { Shape } from '../../ui/Icons';
 import { panel } from '../../ui/Panel';
@@ -48,7 +49,9 @@ function CardDetails({ engine, id }: { engine: Engine; id: string }) {
           <>
             <Art card={card} owned={mine !== null} />
             <Rise at={1} style={styles.name}>
-              <Shape rarity={card.rarity} size={24} />
+              <Beside kind="title">
+                <Shape rarity={card.rarity} size={24} />
+              </Beside>
               <Words kind="title" style={styles.shrink} accessibilityRole="header">
                 {card.name}
               </Words>
@@ -204,7 +207,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.page },
   content: { paddingHorizontal: space.xl, paddingTop: space.s, gap: space.m },
   art: { alignItems: 'center', paddingBottom: space.s, zIndex: 1 },
-  name: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s },
+  name: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: space.s },
   shrink: { flexShrink: 1, textAlign: 'center' },
   centre: { textAlign: 'center' },
   facts: { ...panel, marginTop: space.s, paddingHorizontal: space.xl, paddingVertical: space.xs },

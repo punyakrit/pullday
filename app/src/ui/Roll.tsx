@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { PixelRatio, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import { useOpening } from './Rise';
+import { serifDrop } from './Words';
 import { colors, serif } from './theme';
 
 /** How wide each digit of the serif is, for its size. It has no tabular ones. */
@@ -13,13 +14,14 @@ const scaled = (size: number) => size * Math.min(PixelRatio.getFontScale(), 1.3)
 
 /**
  * A big number that counts up when the screen opens, and rolls on when it changes. Each digit is a strip
- * that slides, so nothing is written again and nothing is laid out. `quick`: it follows a finger.
+ * that slides, so nothing is written again and nothing is laid out. `quick`: it follows a finger. `unit`: what
+ * it counts, small and on the same line.
  */
-export function Roll({ text, size, color = colors.ink, quick = false }: { text: string; size: number; color?: string; quick?: boolean }) {
+export function Roll({ text, size, color = colors.ink, quick = false, unit }: { text: string; size: number; color?: string; quick?: boolean; unit?: string }) {
   const big = scaled(size);
   const chars = [...text];
   return (
-    <View style={styles.row} accessible={false} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+    <View style={[styles.row, level(big)]} accessible={false} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
       {chars.map((char, i) => {
         const place = chars.length - i; // counted from the right, so 9 to 10 keeps the ones
         return char >= '0' && char <= '9' ? (
@@ -30,11 +32,19 @@ export function Roll({ text, size, color = colors.ink, quick = false }: { text: 
           </Text>
         );
       })}
+      {unit !== undefined && (
+        // The space is as big as the number, so the line it stands on is the number's.
+        <Text allowFontScaling={false} style={[styles.text, { fontSize: big, lineHeight: lineOf(big), color }]}>
+          {' '}
+          <Text style={{ fontSize: scaled(27), letterSpacing: -0.8 }}>{unit}</Text>
+        </Text>
+      )}
     </View>
   );
 }
 
 const lineOf = (size: number) => Math.round(size * 1.16);
+const level = (size: number) => ({ transform: [{ translateY: serifDrop(size, lineOf(size)) }] });
 
 function Digit({ digit, size, color, delay, quick }: { digit: number; size: number; color: string; delay: number; quick: boolean }) {
   const reduced = useReducedMotion();
@@ -61,7 +71,7 @@ function Digit({ digit, size, color, delay, quick }: { digit: number; size: numb
 export function Ticking({ text, size, color = colors.ink }: { text: string; size: number; color?: string }) {
   const big = scaled(size);
   return (
-    <View style={styles.row} accessible={false} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+    <View style={[styles.row, level(big)]} accessible={false} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
       {[...text].map((char, i) => (
         <Text key={i} allowFontScaling={false} style={[styles.text, { fontSize: big, lineHeight: lineOf(big), color, textAlign: 'center' }, char >= '0' && char <= '9' && { width: big * 0.45 }]}>
           {char}
