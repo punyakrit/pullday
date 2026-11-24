@@ -70,7 +70,7 @@ Binder (the planned cut). No search. No password reset, email check, rate limit 
 
 ## Known limits and what is still broken
 
-- Smoothness is only measured on an emulator (`docs/MEASUREMENTS.md`): no bare area on a fast scroll, and frame numbers that say little. The build does not install on a 32 bit phone.
+- Smoothness is only measured on an emulator (`docs/MEASUREMENTS.md`): no bare area on a fast scroll, and frame numbers that say little. The quick build in the README is for 64 bit phones. The one for all phones was built, but never tried on a 32 bit one.
 - A phone kept offline, or made to send nothing but its outbox, can claim a day up to 48 hours late.
 - The bundle holds the answers and the reward, so a curious person can read them.
 - Offline, the phone chooses the day from its own clock. Moved forward it shows tomorrow, the server refuses it, and the app says so.

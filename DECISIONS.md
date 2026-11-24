@@ -35,7 +35,7 @@ Binder screens, the planned cut: the table and the seeded pages exist. Search, p
 
 ## Still broken or not known
 
-- No real phone, no cheap Android, no real call. Frame numbers are from an emulator. No 32 bit build.
+- No real phone, no cheap Android, no real call. Frame numbers are from an emulator. Never tried on a 32 bit phone.
 - Stripe's real webhook was never received. The server asks Stripe itself instead.
 - A refund that fails is tried every minute, and nobody is told.
 - The fake store lives on the phone, so the server takes its word. A changed app could begin a purchase every day and pay only after a miss.
